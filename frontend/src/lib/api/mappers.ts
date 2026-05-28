@@ -1,9 +1,10 @@
 import type { AgentRecommendation } from "../../types/agent";
+import type { PageResult } from "../../types/api";
 import type { Customer } from "../../types/customer";
 import type { DashboardSummary } from "../../types/dashboard";
 import type { FollowupTask } from "../../types/followup";
 import type { ReviewMetric } from "../../types/review";
-import type { AgentRecommendationDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, MetricDto } from "./dto";
+import type { AgentRecommendationDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, MetricDto, PageDto } from "./dto";
 
 export function mapCustomer(dto: CustomerDto): Customer {
   return {
@@ -63,5 +64,14 @@ export function mapDashboardSummary(dto: DashboardSummaryDto): DashboardSummary 
       summary: dto.daily_review.summary,
       suggestions: dto.daily_review.suggestions
     }
+  };
+}
+
+export function mapPage<TDto, TItem>(dto: PageDto<TDto>, mapItem: (item: TDto) => TItem): PageResult<TItem> {
+  return {
+    items: dto.items.map(mapItem),
+    page: dto.page,
+    pageSize: dto.page_size,
+    total: dto.total
   };
 }

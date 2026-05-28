@@ -14,3 +14,10 @@ export interface ApiResponse<T> {
   error: ApiError | null;
   meta: ApiMeta;
 }
+
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+}

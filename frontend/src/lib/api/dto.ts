@@ -77,3 +77,10 @@ export interface DashboardSummaryDto {
     suggestions: string[];
   };
 }
+
+export interface PageDto<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+}
