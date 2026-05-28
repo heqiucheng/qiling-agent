@@ -1,0 +1,18 @@
+.state-panel {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-6);
+}
+
+.state-panel__title {
+  color: var(--color-text-primary);
+  font-weight: 750;
+  margin: 0;
+}
+
+.state-panel__message {
+  margin: 0;
+}

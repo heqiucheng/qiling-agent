@@ -1,0 +1,117 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: 224px 1fr;
+  min-height: 100vh;
+}
+
+.side-nav {
+  background: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border-subtle);
+  padding: var(--space-5) var(--space-4);
+}
+
+.side-nav__brand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-2) var(--space-6);
+}
+
+.side-nav__name {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.side-nav__subtitle {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.side-nav__items {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.side-nav__item {
+  align-items: center;
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.side-nav__item.active {
+  background: var(--color-brand-primary-soft);
+  color: var(--color-brand-primary);
+  font-weight: 650;
+}
+
+.app-main {
+  min-width: 0;
+}
+
+.top-bar {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  height: 56px;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+}
+
+.top-bar__meta {
+  color: var(--color-text-secondary);
+  display: flex;
+  gap: var(--space-4);
+}
+
+.page {
+  padding: var(--space-6);
+}
+
+.page__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.page__title {
+  font-size: var(--font-size-2xl);
+  font-weight: 750;
+  line-height: var(--line-height-tight);
+  margin: 0;
+}
+
+.page__subtitle {
+  color: var(--color-text-secondary);
+  margin: var(--space-2) 0 0;
+}
+
+.page-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.page-grid--two {
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .side-nav {
+    display: none;
+  }
+
+  .page-grid--two {
+    grid-template-columns: 1fr;
+  }
+}
