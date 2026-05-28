@@ -204,7 +204,11 @@ func (s *QilingService) UploadConversation(req UploadConversationRequest) (domai
 		req.OwnerID = "usr_001"
 	}
 
-	record := s.store.CreateUpload(req.SourceType, req.Content, req.OwnerID)
+	record, err := s.store.CreateUpload(req.SourceType, req.Content, req.OwnerID)
+	if err != nil {
+		return domain.UploadConversationResult{}, err
+	}
+
 	return domain.UploadConversationResult{
 		UploadID:       record.ID,
 		Status:         record.Status,

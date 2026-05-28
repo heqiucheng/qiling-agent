@@ -164,7 +164,7 @@ func (s *MockStore) ConversationMessages(customerID string) []domain.Conversatio
 	}
 }
 
-func (s *MockStore) CreateUpload(sourceType string, content string, ownerID string) domain.UploadRecord {
+func (s *MockStore) CreateUpload(sourceType string, content string, ownerID string) (domain.UploadRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -192,7 +192,7 @@ func (s *MockStore) CreateUpload(sourceType string, content string, ownerID stri
 		CreatedAt: "2026-05-28T10:30:00Z",
 	}
 	s.uploads[id] = record
-	return record
+	return record, nil
 }
 
 func (s *MockStore) Upload(id string) (domain.UploadRecord, bool) {

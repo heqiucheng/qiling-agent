@@ -12,8 +12,12 @@ import (
 )
 
 func NewRouter(cfg config.Config) http.Handler {
+	return NewRouterWithRepository(cfg, store.NewMockStore())
+}
+
+func NewRouterWithRepository(cfg config.Config, repository store.Repository) http.Handler {
 	mux := http.NewServeMux()
-	qilingService := service.NewQilingService(store.NewMockStore())
+	qilingService := service.NewQilingService(repository)
 	dashboardHandler := handler.DashboardHandler{Service: qilingService}
 	customersHandler := handler.CustomersHandler{Service: qilingService}
 	followupTasksHandler := handler.FollowupTasksHandler{Service: qilingService}

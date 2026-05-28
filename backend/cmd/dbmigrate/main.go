@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/config"
@@ -20,16 +21,28 @@ func main() {
 	}
 	defer database.Close()
 
-	content, err := os.ReadFile("migrations/001_init_mysql.sql")
+	files, err := filepath.Glob("migrations/*.sql")
 	if err != nil {
-		logger.Error("read migration failed", "error", err)
+		logger.Error("list migrations failed", "error", err)
+		os.Exit(1)
+	}
+	if len(files) == 0 {
+		logger.Error("no migration files found")
 		os.Exit(1)
 	}
 
-	for _, statement := range splitSQLStatements(string(content)) {
-		if _, err := database.Exec(statement); err != nil {
-			logger.Error("execute migration statement failed", "error", err, "statement", statement)
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			logger.Error("read migration failed", "error", err, "file", file)
 			os.Exit(1)
+		}
+
+		for _, statement := range splitSQLStatements(string(content)) {
+			if _, err := database.Exec(statement); err != nil {
+				logger.Error("execute migration statement failed", "error", err, "file", file, "statement", statement)
+				os.Exit(1)
+			}
 		}
 	}
 

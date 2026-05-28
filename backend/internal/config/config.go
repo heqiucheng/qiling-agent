@@ -9,6 +9,7 @@ type Config struct {
 	Addr        string
 	Env         string
 	DatabaseURL string
+	StoreDriver string
 }
 
 func Load() Config {
@@ -27,5 +28,10 @@ func Load() Config {
 		databaseURL = "root:password@tcp(127.0.0.1:3306)/qiling_agent?parseTime=true&charset=utf8mb4&loc=Local"
 	}
 
-	return Config{Addr: addr, Env: env, DatabaseURL: databaseURL}
+	storeDriver := strings.TrimSpace(os.Getenv("QILING_STORE_DRIVER"))
+	if storeDriver == "" {
+		storeDriver = "mock"
+	}
+
+	return Config{Addr: addr, Env: env, DatabaseURL: databaseURL, StoreDriver: storeDriver}
 }

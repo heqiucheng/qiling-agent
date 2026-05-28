@@ -79,8 +79,11 @@ go run ./cmd/dbmigrate
 Backend database:
 
 ```powershell
+$env:QILING_STORE_DRIVER="mysql"
 $env:QILING_DATABASE_URL="root:your_password@tcp(127.0.0.1:3306)/qiling_agent?parseTime=true&charset=utf8mb4&loc=Local"
 ```
+
+Default backend storage is `mock`, so the app can run without MySQL during UI/API development. Set `QILING_STORE_DRIVER=mysql` only when validating real database reads.
 
 Local frontend development proxies `/api` requests to `http://127.0.0.1:8080`, so start the backend before checking API-backed pages.
 
