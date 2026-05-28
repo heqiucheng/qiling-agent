@@ -48,6 +48,8 @@ internal/testutil           测试辅助
 
 控制器不能直接写复杂业务逻辑；业务服务不能直接拼 HTTP 响应；数据库查询不能散落在业务层。
 
+Service 层必须依赖 `store.Repository` 接口，不能直接依赖 `MockStore` 或 `MySQLRepository` 具体实现。Mock 和 MySQL 只作为不同 repository 实现，便于逐步替换和测试。
+
 ## 3. 推荐目录结构
 
 ```text

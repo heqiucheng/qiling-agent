@@ -10,10 +10,10 @@ import (
 )
 
 type QilingService struct {
-	store *store.MockStore
+	store store.Repository
 }
 
-func NewQilingService(store *store.MockStore) *QilingService {
+func NewQilingService(store store.Repository) *QilingService {
 	return &QilingService{store: store}
 }
 
