@@ -12,5 +12,5 @@ type DashboardHandler struct {
 }
 
 func (h DashboardHandler) Summary(w http.ResponseWriter, r *http.Request) {
-	httpx.WriteJSON(w, r, http.StatusOK, h.Service.DashboardSummary())
+	httpx.WriteJSON(w, r, http.StatusOK, h.Service.DashboardSummary(httpx.ActorFromRequest(r)))
 }

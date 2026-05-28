@@ -43,6 +43,11 @@ const (
 	UploadFailed            UploadStatus = "failed"
 )
 
+type Actor struct {
+	UserID string `json:"user_id"`
+	Role   string `json:"role"`
+}
+
 type Owner struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`

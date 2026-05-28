@@ -56,5 +56,5 @@ func NewRouter(cfg config.Config) http.Handler {
 		}
 	})
 
-	return httpx.WithRequestID(mux)
+	return httpx.WithRequestID(httpx.WithActor(mux))
 }

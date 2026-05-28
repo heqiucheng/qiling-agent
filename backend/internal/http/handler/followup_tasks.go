@@ -14,7 +14,7 @@ type FollowupTasksHandler struct {
 }
 
 func (h FollowupTasksHandler) List(w http.ResponseWriter, r *http.Request) {
-	httpx.WriteJSON(w, r, http.StatusOK, h.Service.FollowupTasks(r))
+	httpx.WriteJSON(w, r, http.StatusOK, h.Service.FollowupTasks(r, httpx.ActorFromRequest(r)))
 }
 
 func (h FollowupTasksHandler) Copy(w http.ResponseWriter, r *http.Request) {

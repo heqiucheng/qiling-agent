@@ -17,9 +17,9 @@ func NewQilingService(store *store.MockStore) *QilingService {
 	return &QilingService{store: store}
 }
 
-func (s *QilingService) DashboardSummary() domain.DashboardSummary {
-	customers := s.store.Customers()
-	tasks := s.store.FollowupTasks()
+func (s *QilingService) DashboardSummary(actor domain.Actor) domain.DashboardSummary {
+	customers := visibleCustomers(s.store.Customers(), actor)
+	tasks := visibleTasks(s.store.FollowupTasks(), actor)
 
 	return domain.DashboardSummary{
 		Metrics: []domain.Metric{
@@ -38,9 +38,9 @@ func (s *QilingService) DashboardSummary() domain.DashboardSummary {
 	}
 }
 
-func (s *QilingService) Customers(r *http.Request) PageResult[domain.Customer] {
+func (s *QilingService) Customers(r *http.Request, actor domain.Actor) PageResult[domain.Customer] {
 	query := r.URL.Query()
-	customers := s.store.Customers()
+	customers := visibleCustomers(s.store.Customers(), actor)
 	filtered := make([]domain.Customer, 0, len(customers))
 	for _, customer := range customers {
 		if store.MatchCustomer(
@@ -57,13 +57,17 @@ func (s *QilingService) Customers(r *http.Request) PageResult[domain.Customer] {
 	return NewPageResult(filtered, PageRequestFromQuery(r))
 }
 
-func (s *QilingService) CustomerDetail(customerID string) (domain.CustomerDetail, error) {
+func (s *QilingService) CustomerDetail(customerID string, actor domain.Actor) (domain.CustomerDetail, error) {
 	customer, ok := s.store.Customer(customerID)
 	if !ok {
 		return domain.CustomerDetail{}, apperror.New("NOT_FOUND", "客户不存在", map[string]any{"customer_id": customerID})
 	}
+	if !canSeeCustomer(customer, actor) {
+		return domain.CustomerDetail{}, apperror.New("FORBIDDEN", "无权查看该客户", map[string]any{"customer_id": customerID})
+	}
 
 	tasks := s.store.FollowupTasksByCustomer(customerID)
+	tasks = visibleTasks(tasks, actor)
 	var recommendation domain.AgentRecommendation
 	if len(tasks) > 0 {
 		recommendation = tasks[0].Recommendation
@@ -94,13 +98,20 @@ func (s *QilingService) CustomerDetail(customerID string) (domain.CustomerDetail
 	}, nil
 }
 
-func (s *QilingService) CustomerConversations(customerID string, r *http.Request) PageResult[domain.ConversationMessage] {
-	return NewPageResult(s.store.ConversationMessages(customerID), PageRequestFromQuery(r))
+func (s *QilingService) CustomerConversations(customerID string, r *http.Request, actor domain.Actor) (PageResult[domain.ConversationMessage], error) {
+	customer, ok := s.store.Customer(customerID)
+	if !ok {
+		return PageResult[domain.ConversationMessage]{}, apperror.New("NOT_FOUND", "客户不存在", map[string]any{"customer_id": customerID})
+	}
+	if !canSeeCustomer(customer, actor) {
+		return PageResult[domain.ConversationMessage]{}, apperror.New("FORBIDDEN", "无权查看该客户聊天记录", map[string]any{"customer_id": customerID})
+	}
+	return NewPageResult(s.store.ConversationMessages(customerID), PageRequestFromQuery(r)), nil
 }
 
-func (s *QilingService) FollowupTasks(r *http.Request) PageResult[domain.FollowupTask] {
+func (s *QilingService) FollowupTasks(r *http.Request, actor domain.Actor) PageResult[domain.FollowupTask] {
 	query := r.URL.Query()
-	tasks := s.store.FollowupTasks()
+	tasks := visibleTasks(s.store.FollowupTasks(), actor)
 	filtered := make([]domain.FollowupTask, 0, len(tasks))
 	for _, task := range tasks {
 		if query.Get("status") != "" && string(task.Status) != query.Get("status") {
@@ -117,9 +128,9 @@ func (s *QilingService) FollowupTasks(r *http.Request) PageResult[domain.Followu
 	return NewPageResult(filtered, PageRequestFromQuery(r))
 }
 
-func (s *QilingService) ReviewSummary() domain.ReviewSummary {
-	customers := s.store.Customers()
-	tasks := s.store.FollowupTasks()
+func (s *QilingService) ReviewSummary(actor domain.Actor) domain.ReviewSummary {
+	customers := visibleCustomers(s.store.Customers(), actor)
+	tasks := visibleTasks(s.store.FollowupTasks(), actor)
 	riskCustomers := filterCustomers(customers, func(c domain.Customer) bool {
 		return len(c.RiskFlags) > 0 || c.Stage == domain.StageSilent || c.Stage == domain.StageChurnRisk
 	})
@@ -270,6 +281,32 @@ func filterCustomers(customers []domain.Customer, keep func(domain.Customer) boo
 		}
 	}
 	return filtered
+}
+
+func visibleCustomers(customers []domain.Customer, actor domain.Actor) []domain.Customer {
+	if actor.Role == "manager" {
+		return customers
+	}
+	return filterCustomers(customers, func(customer domain.Customer) bool {
+		return customer.Owner.ID == actor.UserID
+	})
+}
+
+func visibleTasks(tasks []domain.FollowupTask, actor domain.Actor) []domain.FollowupTask {
+	if actor.Role == "manager" {
+		return tasks
+	}
+	filtered := make([]domain.FollowupTask, 0, len(tasks))
+	for _, task := range tasks {
+		if task.Customer.Owner.ID == actor.UserID {
+			filtered = append(filtered, task)
+		}
+	}
+	return filtered
+}
+
+func canSeeCustomer(customer domain.Customer, actor domain.Actor) bool {
+	return actor.Role == "manager" || customer.Owner.ID == actor.UserID
 }
 
 func buildStageDistribution(customers []domain.Customer) []domain.StageDistribution {

@@ -70,6 +70,31 @@
   gap: var(--space-4);
 }
 
+.role-switch {
+  background: transparent;
+  border: 0;
+  color: var(--color-brand-primary);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.login-page {
+  align-items: center;
+  background: var(--color-bg-subtle);
+  display: grid;
+  min-height: 100vh;
+  padding: var(--space-6);
+}
+
+.login-panel {
+  display: grid;
+  gap: var(--space-5);
+  justify-self: center;
+  max-width: 440px;
+  width: 100%;
+}
+
 .page {
   padding: var(--space-6);
 }

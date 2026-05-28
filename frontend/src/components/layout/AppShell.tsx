@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { BarChart3, DatabaseZap, Home, MessageSquareText, Settings, Users } from "lucide-react";
+import { useAuth } from "../../features/auth/use-auth";
 
 const navItems = [
   { to: "/app/dashboard", label: "工作台", icon: Home },
@@ -11,6 +12,8 @@ const navItems = [
 ];
 
 export function AppShell() {
+  const { user, switchRole } = useAuth();
+
   return (
     <div className="app-shell">
       <aside className="side-nav" aria-label="主导航">
@@ -34,10 +37,14 @@ export function AppShell() {
         <header className="top-bar">
           <div className="top-bar__meta">
             <span>演示企业</span>
-            <span>销售视角</span>
+            <span>{user.roleLabel}</span>
+            <span>{user.name}</span>
           </div>
           <div className="top-bar__meta">
             <span>同步状态：Mock 数据</span>
+            <button className="role-switch" type="button" onClick={() => switchRole(user.role === "sales" ? "manager" : "sales")}>
+              切换为{user.role === "sales" ? "主管" : "销售"}
+            </button>
           </div>
         </header>
         <Outlet />

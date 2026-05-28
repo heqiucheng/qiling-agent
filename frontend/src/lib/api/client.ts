@@ -1,6 +1,8 @@
 import type { ApiResponseDto } from "./dto";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const DEFAULT_USER_ID = "usr_001";
+const DEFAULT_ROLE = "sales";
 
 export class ApiClientError extends Error {
   readonly code: string;
@@ -19,6 +21,7 @@ export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       Accept: "application/json",
+      ...authHeaders(),
       ...init?.headers
     }
   });
@@ -38,7 +41,8 @@ export async function apiPost<TResponse, TRequest extends Record<string, unknown
     method: "POST",
     headers: {
       Accept: "application/json",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...authHeaders()
     },
     body: JSON.stringify(payload)
   });
@@ -51,4 +55,12 @@ export async function apiPost<TResponse, TRequest extends Record<string, unknown
     throw new ApiClientError("EMPTY_RESPONSE", "接口返回为空");
   }
   return body.data;
+}
+
+function authHeaders(): Record<string, string> {
+  const role = window.localStorage.getItem("qiling_mock_role") ?? DEFAULT_ROLE;
+  return {
+    "X-Qiling-User-ID": role === "manager" ? "mgr_001" : DEFAULT_USER_ID,
+    "X-Qiling-Role": role
+  };
 }

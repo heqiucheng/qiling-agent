@@ -62,7 +62,10 @@ func TestDashboardSummaryEndpoint(t *testing.T) {
 }
 
 func TestCustomersEndpointFiltersAndPaginates(t *testing.T) {
-	body := getJSON(t, "/api/customers?intent=high&page=1&page_size=1")
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers?intent=high&page=1&page_size=1", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "mgr_001",
+		"X-Qiling-Role":    "manager",
+	})
 	data := responseData(t, body)
 
 	if data["page"] != float64(1) {
@@ -77,6 +80,40 @@ func TestCustomersEndpointFiltersAndPaginates(t *testing.T) {
 	items, ok := data["items"].([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected one paged item, got %#v", data["items"])
+	}
+}
+
+func TestSalesRoleOnlySeesOwnCustomers(t *testing.T) {
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	data := responseData(t, body)
+
+	if data["total"] != float64(2) {
+		t.Fatalf("expected sales user to see two owned customers, got %#v", data["total"])
+	}
+}
+
+func TestManagerRoleSeesAllCustomers(t *testing.T) {
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "mgr_001",
+		"X-Qiling-Role":    "manager",
+	})
+	data := responseData(t, body)
+
+	if data["total"] != float64(3) {
+		t.Fatalf("expected manager to see three customers, got %#v", data["total"])
+	}
+}
+
+func TestSalesRoleCannotSeeOtherOwnersCustomerDetail(t *testing.T) {
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers/cus_003", "", http.StatusForbidden, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	if body.Error == nil || body.Error.Code != "FORBIDDEN" {
+		t.Fatalf("expected FORBIDDEN, got %#v", body.Error)
 	}
 }
 
@@ -110,7 +147,10 @@ func TestCustomerConversationsEndpoint(t *testing.T) {
 }
 
 func TestFollowupTasksEndpointFiltersByStatus(t *testing.T) {
-	body := getJSON(t, "/api/followup-tasks?status=pending")
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/followup-tasks?status=pending", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "mgr_001",
+		"X-Qiling-Role":    "manager",
+	})
 	data := responseData(t, body)
 
 	if data["total"] != float64(3) {
@@ -288,6 +328,11 @@ func postJSON(t *testing.T, router http.Handler, path string, payload string, ex
 
 func requestJSON(t *testing.T, router http.Handler, method string, path string, payload string, expectedStatus int) httpx.Response {
 	t.Helper()
+	return requestJSONWithHeaders(t, router, method, path, payload, expectedStatus, nil)
+}
+
+func requestJSONWithHeaders(t *testing.T, router http.Handler, method string, path string, payload string, expectedStatus int, headers map[string]string) httpx.Response {
+	t.Helper()
 
 	var body *bytes.Reader
 	if payload == "" {
@@ -297,6 +342,9 @@ func requestJSON(t *testing.T, router http.Handler, method string, path string, 
 	}
 	req := httptest.NewRequest(method, path, body)
 	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 	rec := httptest.NewRecorder()
 
 	router.ServeHTTP(rec, req)

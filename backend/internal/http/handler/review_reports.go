@@ -12,5 +12,5 @@ type ReviewReportsHandler struct {
 }
 
 func (h ReviewReportsHandler) Summary(w http.ResponseWriter, r *http.Request) {
-	httpx.WriteJSON(w, r, http.StatusOK, h.Service.ReviewSummary())
+	httpx.WriteJSON(w, r, http.StatusOK, h.Service.ReviewSummary(httpx.ActorFromRequest(r)))
 }
