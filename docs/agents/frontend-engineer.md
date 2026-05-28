@@ -48,3 +48,11 @@ AgentReasoningPanel
 - AI 输出要展示推荐理由和风险提示。
 - 所有用户可见错误都要有下一步动作。
 - 重要页面需支持后续企业微信侧边栏适配。
+
+## 样式实现硬性规则
+
+- 实现前必须先建立统一样式入口，例如 `src/styles/tokens.css`、`base.css`、`layout.css`、`components.css`、`states.css`、`themes.css`。
+- 禁止在页面文件中写内联样式、页面级硬编码颜色、页面级硬编码字号和页面级硬编码间距。
+- 页面只能组合组件，不允许重复实现按钮、Badge、AI 洞察、风险提示、话术卡片、指标卡、空状态。
+- 所有业务状态颜色必须来自语义 Token，例如 `--color-intent-high`、`--color-stage-risk`、`--color-task-pending`。
+- 必须遵守 `docs/design/ui-design-system.md`，实现与设计系统冲突时先更新设计系统，再改代码。
