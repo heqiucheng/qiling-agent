@@ -1,4 +1,5 @@
 export interface ReviewMetric {
+  key?: string;
   label: string;
   value: string;
   hint: string;
