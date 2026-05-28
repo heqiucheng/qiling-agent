@@ -9,6 +9,7 @@ go test ./...
 go run ./cmd/server
 go run ./cmd/dbping
 go run ./cmd/dbmigrate
+go run ./cmd/loadtest -base-url http://127.0.0.1:8080 -duration 30s -concurrency 16 -scenario read
 ```
 
 Default address:

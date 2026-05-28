@@ -55,6 +55,14 @@ All checks:
 .\scripts\check.ps1
 ```
 
+Backend load test:
+
+```powershell
+.\scripts\loadtest.ps1
+```
+
+The default load test scenario is read-only. See `docs/engineering/performance-and-load-testing.md` before running write-heavy scenarios.
+
 Frontend:
 
 ```powershell
@@ -74,6 +82,7 @@ go test ./...
 go run ./cmd/server
 go run ./cmd/dbping
 go run ./cmd/dbmigrate
+go run ./cmd/loadtest -base-url http://127.0.0.1:8080 -duration 30s -concurrency 16 -scenario read
 ```
 
 Backend database:
