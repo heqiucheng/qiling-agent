@@ -9,6 +9,7 @@ go test ./...
 go run ./cmd/server
 go run ./cmd/dbping
 go run ./cmd/dbmigrate
+go run ./cmd/dbreset -confirm qiling_agent
 go run ./cmd/loadtest -base-url http://127.0.0.1:8080 -duration 30s -concurrency 16 -scenario read
 ```
 
@@ -31,6 +32,8 @@ QILING_DATABASE_URL=root:change_me@tcp(127.0.0.1:3306)/qiling_agent?parseTime=tr
 
 - `mock`: default in-memory data for local UI/API development.
 - `mysql`: read from MySQL using `QILING_DATABASE_URL`. Write actions are still being migrated.
+
+`dbreset` is for local development only. It drops Qiling tables and reruns migrations with demo seed data. The command requires `-confirm qiling_agent` to avoid accidental execution.
 
 ## Current API
 

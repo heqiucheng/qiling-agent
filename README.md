@@ -82,6 +82,7 @@ go test ./...
 go run ./cmd/server
 go run ./cmd/dbping
 go run ./cmd/dbmigrate
+go run ./cmd/dbreset -confirm qiling_agent
 go run ./cmd/loadtest -base-url http://127.0.0.1:8080 -duration 30s -concurrency 16 -scenario read
 ```
 
@@ -93,6 +94,8 @@ $env:QILING_DATABASE_URL="root:your_password@tcp(127.0.0.1:3306)/qiling_agent?pa
 ```
 
 Default backend storage is `mock`, so the app can run without MySQL during UI/API development. Set `QILING_STORE_DRIVER=mysql` only when validating real database reads.
+
+`go run ./cmd/dbreset -confirm qiling_agent` drops local development tables and reruns migrations with demo seed data. Do not use it against production or shared databases.
 
 Local frontend development proxies `/api` requests to `http://127.0.0.1:8080`, so start the backend before checking API-backed pages.
 

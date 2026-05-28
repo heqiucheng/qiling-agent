@@ -63,6 +63,15 @@ Available scenarios:
 
 Use `upload` only against local or disposable environments until a reset command is available.
 
+After running write-heavy tests locally, reset demo data with:
+
+```powershell
+cd backend
+go run ./cmd/dbreset -confirm qiling_agent
+```
+
+The reset command drops Qiling development tables and reruns migrations. Never run it against production or shared databases.
+
 ## When To Run
 
 Run read-path load tests after:
