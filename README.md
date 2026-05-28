@@ -49,6 +49,12 @@ docs/       Product, agent, design, and architecture documents
 
 ## Development Commands
 
+All checks:
+
+```powershell
+.\scripts\check.ps1
+```
+
 Frontend:
 
 ```powershell
