@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { IntentBadge } from "../../components/customer/IntentBadge";
 import { StageBadge } from "../../components/customer/StageBadge";
@@ -54,7 +55,7 @@ export function CustomersPage() {
             </div>
             {customers.map((customer) => (
               <div className="data-table__row" role="row" key={customer.id}>
-                <strong role="cell">{customer.name}</strong>
+                <strong role="cell"><Link className="text-link" to={`/app/customers/${customer.id}`}>{customer.name}</Link></strong>
                 <span role="cell"><StageBadge stage={customer.stage} /></span>
                 <span role="cell"><IntentBadge level={customer.intent} /></span>
                 <span role="cell">{customer.owner}</span>

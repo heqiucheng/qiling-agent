@@ -247,3 +247,13 @@
 .timeline__item p {
   margin: 0;
 }
+
+.text-link {
+  color: var(--color-brand-primary);
+  text-decoration: none;
+}
+
+.text-link:hover {
+  color: var(--color-brand-primary-hover);
+  text-decoration: underline;
+}

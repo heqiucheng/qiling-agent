@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 
 import { AgentInsight } from "../../components/agent/AgentInsight";
 import { Card } from "../../components/ui/Card";
@@ -8,6 +9,7 @@ import { mockTasks } from "../../lib/mock/dashboard";
 import type { CustomerDetail } from "../../types/customerDetail";
 
 export function CustomerDetailPage() {
+  const { customerId = "cus_001" } = useParams();
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const task = mockTasks[0];
   const recommendation = detail?.latestRecommendation ?? task.recommendation;
@@ -16,7 +18,7 @@ export function CustomerDetailPage() {
   useEffect(() => {
     let active = true;
 
-    void getCustomerDetail("cus_001")
+    void getCustomerDetail(customerId)
       .then((result) => {
         if (active) {
           setDetail(result);
@@ -31,7 +33,7 @@ export function CustomerDetailPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [customerId]);
 
   return (
     <section className="page">
