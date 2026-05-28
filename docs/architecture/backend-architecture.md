@@ -4,7 +4,7 @@
 **版本**：v0.1  
 **日期**：2026-05-28  
 **后端语言**：Go  
-**依赖文档**：`AGENTS.md`、`docs/engineering/backend-engineering-rules.md`、`docs/specs/mvp-prd.md`、`docs/architecture/api-contracts.md`
+**依赖文档**：`AGENTS.md`、`docs/engineering/backend-engineering-rules.md`、`docs/specs/mvp-prd.md`、`docs/architecture/api-contracts.md`、`docs/architecture/auth-and-permission.md`
 
 ## 1. 技术栈决策
 
