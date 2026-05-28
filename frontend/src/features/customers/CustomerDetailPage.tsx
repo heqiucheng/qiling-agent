@@ -4,13 +4,16 @@ import { useParams } from "react-router-dom";
 import { AgentInsight } from "../../components/agent/AgentInsight";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { useAuth } from "../auth/use-auth";
 import { getCustomerDetail } from "../../lib/api/customers";
 import { mockTasks } from "../../lib/mock/dashboard";
 import type { CustomerDetail } from "../../types/customerDetail";
 
 export function CustomerDetailPage() {
   const { customerId = "cus_001" } = useParams();
+  const { user } = useAuth();
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
+  const [errorText, setErrorText] = useState("");
   const task = mockTasks[0];
   const recommendation = detail?.latestRecommendation ?? task.recommendation;
   const customerName = detail?.customer.name ?? task.customer.name;
@@ -22,18 +25,20 @@ export function CustomerDetailPage() {
       .then((result) => {
         if (active) {
           setDetail(result);
+          setErrorText("");
         }
       })
       .catch(() => {
         if (active) {
           setDetail(null);
+          setErrorText("当前身份无权查看该客户，或后端服务未启动。");
         }
       });
 
     return () => {
       active = false;
     };
-  }, [customerId]);
+  }, [customerId, user.id, user.role]);
 
   return (
     <section className="page">
@@ -58,7 +63,7 @@ export function CustomerDetailPage() {
             </div>
           </Card>
         ) : (
-          <EmptyState title="聊天记录时间线" message="后端未启动时显示占位状态。" />
+          <EmptyState title="聊天记录时间线" message={errorText || "后端未启动时显示占位状态。"} />
         )}
         <AgentInsight action={recommendation.recommendedAction} reasoning={recommendation.reasoning} riskFlags={recommendation.riskFlags} />
       </div>

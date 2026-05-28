@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 
 import { ScriptTaskCard } from "../../components/followup/ScriptTaskCard";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { useAuth } from "../auth/use-auth";
 import { copyFollowupTask, listPendingFollowupTasks, markFollowupTaskWrong, regenerateFollowupTask, skipFollowupTask } from "../../lib/api/followupTasks";
 import { mockTasks } from "../../lib/mock/dashboard";
 import type { FollowupTask } from "../../types/followup";
 
 export function FollowupTasksPage() {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<FollowupTask[]>(mockTasks);
   const [statusText, setStatusText] = useState("等待处理待确认话术");
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
@@ -18,6 +20,7 @@ export function FollowupTasksPage() {
       .then((result) => {
         if (active) {
           setTasks(result.items);
+          setStatusText(`${user.roleLabel}下有 ${result.total} 条待确认话术`);
         }
       })
       .catch(() => {
@@ -29,7 +32,7 @@ export function FollowupTasksPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user.id, user.role, user.roleLabel]);
 
   async function handleCopy(task: FollowupTask) {
     setBusyTaskId(task.id);

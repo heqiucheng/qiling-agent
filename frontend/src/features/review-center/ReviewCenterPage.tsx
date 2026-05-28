@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 
 import { AgentInsight } from "../../components/agent/AgentInsight";
 import { MetricCard } from "../../components/ui/MetricCard";
+import { useAuth } from "../auth/use-auth";
 import { getReviewSummary } from "../../lib/api/review";
 import { mockInsights, mockMetrics } from "../../lib/mock/dashboard";
 import type { ReviewSummary } from "../../types/review";
 
 export function ReviewCenterPage() {
+  const { user } = useAuth();
   const [summary, setSummary] = useState<ReviewSummary | null>(null);
   const insights = summary?.insights ?? mockInsights;
   const metrics = summary?.metrics ?? mockMetrics;
@@ -30,7 +32,7 @@ export function ReviewCenterPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user.id, user.role]);
 
   return (
     <section className="page">

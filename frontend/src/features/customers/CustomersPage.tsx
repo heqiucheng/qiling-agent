@@ -5,10 +5,12 @@ import { IntentBadge } from "../../components/customer/IntentBadge";
 import { StageBadge } from "../../components/customer/StageBadge";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { useAuth } from "../auth/use-auth";
 import { listCustomers } from "../../lib/api/customers";
 import type { Customer } from "../../types/customer";
 
 export function CustomersPage() {
+  const { user } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -32,7 +34,7 @@ export function CustomersPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user.id, user.role]);
 
   return (
     <section className="page">

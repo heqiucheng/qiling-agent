@@ -3,11 +3,13 @@ import { useEffect, useState } from "react";
 import { AgentInsight } from "../../components/agent/AgentInsight";
 import { ScriptTaskCard } from "../../components/followup/ScriptTaskCard";
 import { MetricCard } from "../../components/ui/MetricCard";
+import { useAuth } from "../auth/use-auth";
 import { getDashboardSummary } from "../../lib/api/dashboard";
 import { mockInsights, mockMetrics, mockTasks } from "../../lib/mock/dashboard";
 import type { DashboardSummary } from "../../types/dashboard";
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export function DashboardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user.id, user.role]);
 
   const metrics = summary?.metrics ?? mockMetrics;
   const firstTask = summary?.priorityTasks[0] ?? mockTasks[0];
