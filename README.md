@@ -29,6 +29,24 @@ Qiling Agent helps private-domain sales teams analyze customer conversations, ge
 - 将评审、测试、Lint 和构建作为 AI 工作流的最终约束。
 - 通过测试反馈和项目复盘持续优化 `AGENTS.md`。
 
+
+## Tech Stack
+
+```text
+Frontend: React + Vite + TypeScript
+Backend: Go
+Architecture: modular monolith for MVP
+Database direction: PostgreSQL, with pgvector evaluation reserved for later AI memory/RAG work
+```
+
+## Repository Structure
+
+```text
+src/       Frontend application
+backend/   Go backend service
+docs/      Product, agent, design, and architecture documents
+```
+
 ## 当前文档
 
 ```text
