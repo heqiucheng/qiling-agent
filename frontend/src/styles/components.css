@@ -179,3 +179,45 @@
   font-size: var(--font-size-xs);
   font-weight: 800;
 }
+
+.form-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.form-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.form-field__label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+}
+
+.form-field__textarea {
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font: inherit;
+  min-height: 180px;
+  padding: var(--space-3);
+  resize: vertical;
+}
+
+.result-panel {
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.result-panel__grid {
+  color: var(--color-text-secondary);
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}

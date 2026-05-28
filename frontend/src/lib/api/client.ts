@@ -32,3 +32,23 @@ export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return body.data;
 }
+
+export async function apiPost<TResponse, TRequest extends Record<string, unknown>>(path: string, payload: TRequest): Promise<TResponse> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const body = (await response.json()) as ApiResponseDto<TResponse>;
+  if (!response.ok || body.error) {
+    throw new ApiClientError(body.error?.code ?? "HTTP_ERROR", body.error?.message ?? "接口请求失败", body.error?.details);
+  }
+  if (body.data === null) {
+    throw new ApiClientError("EMPTY_RESPONSE", "接口返回为空");
+  }
+  return body.data;
+}

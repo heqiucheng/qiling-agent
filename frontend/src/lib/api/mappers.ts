@@ -4,7 +4,9 @@ import type { Customer } from "../../types/customer";
 import type { DashboardSummary } from "../../types/dashboard";
 import type { FollowupTask } from "../../types/followup";
 import type { ReviewMetric } from "../../types/review";
+import type { ConfirmUploadResult, UploadConversationResult } from "../../types/upload";
 import type { AgentRecommendationDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, MetricDto, PageDto } from "./dto";
+import type { ConfirmUploadResultDto, UploadConversationResultDto } from "./dto";
 
 export function mapCustomer(dto: CustomerDto): Customer {
   return {
@@ -73,5 +75,29 @@ export function mapPage<TDto, TItem>(dto: PageDto<TDto>, mapItem: (item: TDto) =
     page: dto.page,
     pageSize: dto.page_size,
     total: dto.total
+  };
+}
+
+export function mapUploadConversationResult(dto: UploadConversationResultDto): UploadConversationResult {
+  return {
+    uploadId: dto.upload_id,
+    status: dto.status,
+    parsedCustomer: {
+      name: dto.parsed_customer.name,
+      ownerName: dto.parsed_customer.owner_name
+    },
+    messageCount: dto.message_count,
+    warnings: dto.warnings,
+    nextAction: dto.next_action
+  };
+}
+
+export function mapConfirmUploadResult(dto: ConfirmUploadResultDto): ConfirmUploadResult {
+  return {
+    customerId: dto.customer_id,
+    conversationId: dto.conversation_id,
+    agentRunId: dto.agent_run_id,
+    followupTaskId: dto.followup_task_id,
+    status: dto.status
   };
 }

@@ -84,3 +84,48 @@ export interface PageDto<T> {
   page_size: number;
   total: number;
 }
+
+export interface ParsedCustomerDto {
+  name: string;
+  owner_name: string;
+}
+
+export interface UploadConversationResultDto {
+  upload_id: string;
+  status: "uploaded" | "parsed" | "needs_confirmation" | "confirmed" | "failed";
+  parsed_customer: ParsedCustomerDto;
+  message_count: number;
+  warnings: string[];
+  next_action: string;
+}
+
+export interface ConfirmUploadResultDto {
+  customer_id: string;
+  conversation_id: string;
+  agent_run_id: string;
+  followup_task_id: string;
+  status: "confirmed";
+}
+
+export interface TaskCopyResultDto {
+  task_id: string;
+  status: FollowupTaskStatus;
+  copied_at: string;
+}
+
+export interface TaskStatusResultDto {
+  task_id: string;
+  status: FollowupTaskStatus;
+}
+
+export interface MarkWrongResultDto {
+  task_id: string;
+  status: FollowupTaskStatus;
+  feedback_id: string;
+}
+
+export interface RegenerateTaskResultDto {
+  task_id: string;
+  agent_run_id: string;
+  recommendation: AgentRecommendationDto;
+}
