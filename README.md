@@ -42,9 +42,29 @@ Database direction: PostgreSQL, with pgvector evaluation reserved for later AI m
 ## Repository Structure
 
 ```text
-src/       Frontend application
-backend/   Go backend service
-docs/      Product, agent, design, and architecture documents
+frontend/   React + Vite + TypeScript frontend application
+backend/    Go backend service
+docs/       Product, agent, design, and architecture documents
+```
+
+## Development Commands
+
+Frontend:
+
+```powershell
+cd frontend
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
+
+Backend:
+
+```powershell
+cd backend
+go test ./...
+go run ./cmd/server
 ```
 
 ## 当前文档

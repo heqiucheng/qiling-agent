@@ -4,7 +4,7 @@
 **版本**：v0.1  
 **日期**：2026-05-28  
 **后端语言**：Go  
-**依赖文档**：`AGENTS.md`、`docs/engineering/backend-engineering-rules.md`、`docs/specs/mvp-prd.md`
+**依赖文档**：`AGENTS.md`、`docs/engineering/backend-engineering-rules.md`、`docs/specs/mvp-prd.md`、`docs/architecture/api-contracts.md`
 
 ## 1. 技术栈决策
 
@@ -272,7 +272,7 @@ GET    /api/review-reports/summary
 GET    /api/agent-runs/{id}
 ```
 
-对接真实前端前，必须先写 `docs/architecture/api-contracts.md`。
+对接真实前端前，必须遵守 `docs/architecture/api-contracts.md`。接口实现、前端 API client、Mock 数据和测试断言都以该契约为准。
 
 ## 9. Agent 和 AI 集成
 

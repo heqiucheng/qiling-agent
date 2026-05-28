@@ -57,7 +57,57 @@ API Contract 先行
 
 ## 3. 前端目录结构
 
-推荐结构：
+前端工程位于仓库的 `frontend/` 目录，和 `backend/`、`docs/` 平级。推荐结构：
+
+```text
+frontend/
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+└── src/
+    ├── app/
+    │   ├── App.tsx
+    │   ├── routes.tsx
+    │   └── providers.tsx
+    ├── assets/
+    ├── components/
+    │   ├── ui/
+    │   ├── layout/
+    │   ├── agent/
+    │   ├── customer/
+    │   ├── followup/
+    │   ├── review/
+    │   └── upload/
+    ├── features/
+    │   ├── dashboard/
+    │   ├── customers/
+    │   ├── followup-tasks/
+    │   ├── data-ingestion/
+    │   ├── review-center/
+    │   └── settings/
+    ├── lib/
+    │   ├── api/
+    │   ├── mock/
+    │   ├── date.ts
+    │   ├── clipboard.ts
+    │   └── format.ts
+    ├── styles/
+    │   ├── tokens.css
+    │   ├── base.css
+    │   ├── layout.css
+    │   ├── components.css
+    │   ├── states.css
+    │   └── themes.css
+    ├── types/
+    │   ├── api.ts
+    │   ├── customer.ts
+    │   ├── agent.ts
+    │   ├── followup.ts
+    │   └── review.ts
+    └── main.tsx
+```
+
+`frontend/src/` 内部结构：
 
 ```text
 src/
@@ -302,7 +352,7 @@ Agent 推荐
 Mock 数据不应散落在页面里，应集中在：
 
 ```text
-src/lib/mock/
+frontend/src/lib/mock/
 ```
 
 ### 8.2 API Contract 先行
@@ -322,7 +372,7 @@ Contract 建议放在：
 
 ```text
 docs/architecture/api-contracts.md
-src/types/api.ts
+frontend/src/types/api.ts
 ```
 
 ### 8.3 API Client
@@ -330,11 +380,11 @@ src/types/api.ts
 所有请求通过统一 API Client：
 
 ```text
-src/lib/api/client.ts
-src/lib/api/customers.ts
-src/lib/api/followupTasks.ts
-src/lib/api/uploads.ts
-src/lib/api/review.ts
+frontend/src/lib/api/client.ts
+frontend/src/lib/api/customers.ts
+frontend/src/lib/api/followupTasks.ts
+frontend/src/lib/api/uploads.ts
+frontend/src/lib/api/review.ts
 ```
 
 页面不能直接 `fetch`。
@@ -424,6 +474,7 @@ Playwright 后置用于主流程 E2E
 前端代码提交前应运行：
 
 ```bash
+cd frontend
 npm run lint
 npm run typecheck
 npm run test

@@ -109,7 +109,7 @@ docs/agents/
 
 - 前端：React + Vite + TypeScript。
 - 后端：Go。
-- 仓库结构：前端和后端同仓管理，根目录保留前端工程，`backend/` 放 Go 后端工程。
+- 仓库结构：前端和后端同仓管理，`frontend/` 放前端工程，`backend/` 放 Go 后端工程，`docs/` 放产品、设计、架构和规则文档。
 - 后端架构：模块化单体，按 `docs/architecture/backend-architecture.md` 执行。
 - 后续真实接口对接前必须先定义 API Contract，并完成本地 smoke test 或 mock 验证。
 
