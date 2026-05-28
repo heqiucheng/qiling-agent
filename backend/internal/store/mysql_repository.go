@@ -3,6 +3,8 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/apperror"
@@ -100,31 +102,216 @@ func (r *MySQLRepository) ConversationMessages(customerID string) []domain.Conve
 }
 
 func (r *MySQLRepository) CreateUpload(sourceType string, content string, ownerID string) (domain.UploadRecord, error) {
-	return domain.UploadRecord{}, unsupportedMySQLWrite("CreateUpload")
+	now := time.Now().UTC()
+	id := makeID("upl", now)
+	customerName := inferCustomerName(content)
+	record := domain.UploadRecord{
+		ID:         id,
+		Status:     domain.UploadNeedsConfirmation,
+		SourceType: sourceType,
+		ParsedCustomer: domain.ParsedCustomer{
+			Name:      customerName,
+			OwnerName: ownerName(ownerID),
+		},
+		Messages: []domain.ConversationMessage{
+			{
+				ID:         "msg_" + id,
+				SenderType: "customer",
+				SenderName: customerName,
+				Content:    strings.TrimSpace(content),
+				SentAt:     formatTime(now),
+			},
+		},
+		Warnings:  []string{},
+		CreatedAt: formatTime(now),
+	}
+
+	warningsJSON, err := json.Marshal(record.Warnings)
+	if err != nil {
+		return domain.UploadRecord{}, err
+	}
+
+	_, err = r.db.Exec(`
+		INSERT INTO uploads (id, status, source_type, raw_content, parsed_customer_name, parsed_owner_name, warnings, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, record.ID, record.Status, record.SourceType, strings.TrimSpace(content), record.ParsedCustomer.Name, record.ParsedCustomer.OwnerName, warningsJSON, now)
+	if err != nil {
+		return domain.UploadRecord{}, err
+	}
+
+	return record, nil
 }
 
 func (r *MySQLRepository) Upload(id string) (domain.UploadRecord, bool) {
-	return domain.UploadRecord{}, false
+	var record domain.UploadRecord
+	var status string
+	var warningsJSON []byte
+	var createdAt time.Time
+	var rawContent sql.NullString
+
+	err := r.db.QueryRow(`
+		SELECT id, status, source_type, parsed_customer_name, parsed_owner_name, warnings, created_at, raw_content
+		FROM uploads
+		WHERE id = ?
+	`, id).Scan(
+		&record.ID,
+		&status,
+		&record.SourceType,
+		&record.ParsedCustomer.Name,
+		&record.ParsedCustomer.OwnerName,
+		&warningsJSON,
+		&createdAt,
+		&rawContent,
+	)
+	if err != nil {
+		return domain.UploadRecord{}, false
+	}
+
+	record.Status = domain.UploadStatus(status)
+	record.Warnings = decodeStringList(warningsJSON)
+	record.CreatedAt = formatTime(createdAt)
+	record.Messages = []domain.ConversationMessage{
+		{
+			ID:         "msg_" + record.ID,
+			SenderType: "customer",
+			SenderName: record.ParsedCustomer.Name,
+			Content:    rawContent.String,
+			SentAt:     record.CreatedAt,
+		},
+	}
+	return record, true
 }
 
 func (r *MySQLRepository) ConfirmUpload(uploadID string, customerName string, ownerID string) (domain.ConfirmUploadResult, error) {
-	return domain.ConfirmUploadResult{}, unsupportedMySQLWrite("ConfirmUpload")
+	tx, err := r.db.Begin()
+	if err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+	defer tx.Rollback()
+
+	record, err := uploadForUpdate(tx, uploadID)
+	if err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+	if record.Status == domain.UploadConfirmed {
+		return domain.ConfirmUploadResult{}, apperror.New("CONFLICT", "上传记录已确认", map[string]any{"upload_id": uploadID})
+	}
+	if strings.TrimSpace(customerName) == "" {
+		customerName = record.ParsedCustomer.Name
+	}
+
+	now := time.Now().UTC()
+	customerID := makeID("cus", now)
+	taskID := makeID("task", now)
+	agentRunID := makeID("run", now)
+	conversationID := makeID("conv", now)
+
+	concernsJSON := mustJSON([]string{"价格", "效果"})
+	tagsJSON := mustJSON([]string{"价格敏感"})
+	riskFlagsJSON := mustJSON([]string{"涉及价格承诺，需人工确认"})
+	recommendation := domain.AgentRecommendation{
+		CustomerStage:     domain.StagePriceObjection,
+		IntentLevel:       domain.IntentHigh,
+		MainConcerns:      []string{"价格", "效果"},
+		RecommendedAction: "解释价值并提供案例",
+		Script:            "您好，您刚才提到价格和效果，我建议先结合您的使用场景看投入产出，我可以给您整理一个接近情况的案例。",
+		Reasoning:         "上传内容显示客户关注价格和效果，需要先建立价值感再推动下一步。",
+		RiskFlags:         []string{"避免直接承诺优惠或效果"},
+		NextFollowupTime:  formatTime(now.Add(6 * time.Hour)),
+	}
+	recommendationJSON := mustJSON(recommendation)
+
+	if _, err := tx.Exec(`
+		INSERT INTO customers (
+			id, name, source, owner_id, stage, intent, concerns, tags,
+			profile_summary, last_contact_at, pending_tasks, risk_flags
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, customerID, customerName, "上传聊天记录", ownerID, domain.StagePriceObjection, domain.IntentHigh, concernsJSON, tagsJSON, "由上传聊天记录生成的客户画像，客户正在比较价格和效果。", now, 1, riskFlagsJSON); err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO conversation_messages (id, customer_id, sender_type, sender_name, content, sent_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "msg_"+uploadID, customerID, "customer", customerName, "上传聊天记录已解析，原文将在后续解析器中结构化保存。", now); err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO followup_tasks (id, customer_id, type, status, generated_at, recommendation, feedback)
+		VALUES (?, ?, ?, ?, ?, ?, NULL)
+	`, taskID, customerID, "price_objection", domain.FollowupPending, now, recommendationJSON); err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO agent_runs (
+			id, customer_id, task_type, status, model, prompt_version, input_summary,
+			output, validation_errors, risk_flags, created_at, completed_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, agentRunID, customerID, "generate_followup_script", "succeeded", "mock-local-v1", "followup_v1", "上传聊天记录生成客户画像和跟进话术", recommendationJSON, mustJSON([]string{}), riskFlagsJSON, now, now); err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+
+	if _, err := tx.Exec(`UPDATE uploads SET status = ? WHERE id = ?`, domain.UploadConfirmed, uploadID); err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+
+	return domain.ConfirmUploadResult{
+		CustomerID:     customerID,
+		ConversationID: conversationID,
+		AgentRunID:     agentRunID,
+		FollowupTaskID: taskID,
+		Status:         domain.UploadConfirmed,
+	}, nil
 }
 
 func (r *MySQLRepository) CopyTask(taskID string, copiedAt string) (domain.TaskCopyResult, error) {
-	return domain.TaskCopyResult{}, unsupportedMySQLWrite("CopyTask")
+	if err := r.updatePendingTaskStatus(taskID, domain.FollowupCopied, nil); err != nil {
+		return domain.TaskCopyResult{}, err
+	}
+	return domain.TaskCopyResult{TaskID: taskID, Status: domain.FollowupCopied, CopiedAt: copiedAt}, nil
 }
 
 func (r *MySQLRepository) SkipTask(taskID string, reason string) (domain.TaskStatusResult, error) {
-	return domain.TaskStatusResult{}, unsupportedMySQLWrite("SkipTask")
+	feedback := &domain.TaskFeedback{Reason: reason}
+	if err := r.updatePendingTaskStatus(taskID, domain.FollowupSkipped, feedback); err != nil {
+		return domain.TaskStatusResult{}, err
+	}
+	return domain.TaskStatusResult{TaskID: taskID, Status: domain.FollowupSkipped}, nil
 }
 
 func (r *MySQLRepository) MarkTaskWrong(taskID string, reason string) (domain.MarkWrongResult, error) {
-	return domain.MarkWrongResult{}, unsupportedMySQLWrite("MarkTaskWrong")
+	feedback := &domain.TaskFeedback{Reason: reason}
+	if err := r.updatePendingTaskStatus(taskID, domain.FollowupMarkedWrong, feedback); err != nil {
+		return domain.MarkWrongResult{}, err
+	}
+	return domain.MarkWrongResult{TaskID: taskID, Status: domain.FollowupMarkedWrong, FeedbackID: "fb_" + taskID}, nil
 }
 
 func (r *MySQLRepository) RegenerateTask(taskID string, instruction string) (domain.RegenerateTaskResult, error) {
-	return domain.RegenerateTaskResult{}, unsupportedMySQLWrite("RegenerateTask")
+	task, err := r.followupTask(taskID)
+	if err != nil {
+		return domain.RegenerateTaskResult{}, err
+	}
+
+	recommendation := task.Recommendation
+	if strings.TrimSpace(instruction) != "" {
+		recommendation.Script = recommendation.Script + "（已按反馈调整语气）"
+		recommendation.Reasoning = recommendation.Reasoning + " 本次换一种话术保留原客户上下文，仅调整表达方式。"
+	}
+
+	recommendationJSON := mustJSON(recommendation)
+	if _, err := r.db.Exec(`UPDATE followup_tasks SET recommendation = ? WHERE id = ?`, recommendationJSON, taskID); err != nil {
+		return domain.RegenerateTaskResult{}, err
+	}
+
+	agentRunID := "run_" + taskID
+	return domain.RegenerateTaskResult{TaskID: taskID, AgentRunID: agentRunID, Recommendation: recommendation}, nil
 }
 
 type customerScanner interface {
@@ -293,6 +480,100 @@ func formatTime(value time.Time) string {
 	return value.UTC().Format(time.RFC3339)
 }
 
-func unsupportedMySQLWrite(method string) error {
-	return apperror.New("MYSQL_WRITE_NOT_READY", "MySQL 写入能力尚未启用", map[string]any{"method": method})
+func uploadForUpdate(tx *sql.Tx, id string) (domain.UploadRecord, error) {
+	var record domain.UploadRecord
+	var status string
+	var warningsJSON []byte
+	var createdAt time.Time
+	var rawContent sql.NullString
+
+	err := tx.QueryRow(`
+		SELECT id, status, source_type, parsed_customer_name, parsed_owner_name, warnings, created_at, raw_content
+		FROM uploads
+		WHERE id = ?
+		FOR UPDATE
+	`, id).Scan(
+		&record.ID,
+		&status,
+		&record.SourceType,
+		&record.ParsedCustomer.Name,
+		&record.ParsedCustomer.OwnerName,
+		&warningsJSON,
+		&createdAt,
+		&rawContent,
+	)
+	if err == sql.ErrNoRows {
+		return domain.UploadRecord{}, apperror.New("NOT_FOUND", "上传记录不存在", map[string]any{"upload_id": id})
+	}
+	if err != nil {
+		return domain.UploadRecord{}, err
+	}
+
+	record.Status = domain.UploadStatus(status)
+	record.Warnings = decodeStringList(warningsJSON)
+	record.CreatedAt = formatTime(createdAt)
+	record.Messages = []domain.ConversationMessage{
+		{
+			ID:         "msg_" + record.ID,
+			SenderType: "customer",
+			SenderName: record.ParsedCustomer.Name,
+			Content:    rawContent.String,
+			SentAt:     record.CreatedAt,
+		},
+	}
+	return record, nil
+}
+
+func (r *MySQLRepository) followupTask(taskID string) (domain.FollowupTask, error) {
+	rows, err := r.db.Query(followupTaskSelectSQL()+" WHERE t.id = ?", taskID)
+	if err != nil {
+		return domain.FollowupTask{}, err
+	}
+	defer rows.Close()
+
+	tasks := scanFollowupTasks(rows)
+	if len(tasks) == 0 {
+		return domain.FollowupTask{}, apperror.New("NOT_FOUND", "跟进任务不存在", map[string]any{"task_id": taskID})
+	}
+	return tasks[0], nil
+}
+
+func (r *MySQLRepository) updatePendingTaskStatus(taskID string, status domain.FollowupTaskStatus, feedback *domain.TaskFeedback) error {
+	task, err := r.followupTask(taskID)
+	if err != nil {
+		return err
+	}
+	if task.Status != domain.FollowupPending {
+		return apperror.New("TASK_ALREADY_FINALIZED", "任务已经处理，不能重复操作", map[string]any{"task_id": taskID})
+	}
+
+	var feedbackValue any
+	if feedback != nil {
+		feedbackValue = mustJSON(feedback)
+	}
+
+	result, err := r.db.Exec(`UPDATE followup_tasks SET status = ?, feedback = ? WHERE id = ?`, status, feedbackValue, taskID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return apperror.New("NOT_FOUND", "跟进任务不存在", map[string]any{"task_id": taskID})
+	}
+	return nil
+}
+
+func makeID(prefix string, now time.Time) string {
+	return fmt.Sprintf("%s_%d", prefix, now.UnixNano())
+}
+
+func mustJSON(value any) []byte {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return []byte("null")
+	}
+	return raw
 }
