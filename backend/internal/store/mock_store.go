@@ -108,10 +108,60 @@ func (s *MockStore) Customers() []domain.Customer {
 	return append([]domain.Customer(nil), s.customers...)
 }
 
+func (s *MockStore) Customer(id string) (domain.Customer, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, customer := range s.customers {
+		if customer.ID == id {
+			return customer, true
+		}
+	}
+	return domain.Customer{}, false
+}
+
 func (s *MockStore) FollowupTasks() []domain.FollowupTask {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]domain.FollowupTask(nil), s.tasks...)
+}
+
+func (s *MockStore) FollowupTasksByCustomer(customerID string) []domain.FollowupTask {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tasks := make([]domain.FollowupTask, 0)
+	for _, task := range s.tasks {
+		if task.Customer.ID == customerID {
+			tasks = append(tasks, task)
+		}
+	}
+	return tasks
+}
+
+func (s *MockStore) ConversationMessages(customerID string) []domain.ConversationMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, upload := range s.uploads {
+		for _, customer := range s.customers {
+			if customer.ID == customerID && customer.Name == upload.ParsedCustomer.Name {
+				return append([]domain.ConversationMessage(nil), upload.Messages...)
+			}
+		}
+	}
+
+	customerName := "客户"
+	for _, customer := range s.customers {
+		if customer.ID == customerID {
+			customerName = customer.Name
+			break
+		}
+	}
+	return []domain.ConversationMessage{
+		{ID: "msg_" + customerID + "_001", SenderType: "customer", SenderName: customerName, Content: "这个价格还能优惠吗？", SentAt: "2026-05-28T09:20:00Z"},
+		{ID: "msg_" + customerID + "_002", SenderType: "sales", SenderName: "销售A", Content: "我先结合您的需求整理一个更适合的方案。", SentAt: "2026-05-28T09:22:00Z"},
+	}
 }
 
 func (s *MockStore) CreateUpload(sourceType string, content string, ownerID string) domain.UploadRecord {

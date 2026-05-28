@@ -171,3 +171,43 @@ type DashboardSummary struct {
 	RiskCustomers       []Customer     `json:"risk_customers"`
 	DailyReview         DailyReview    `json:"daily_review"`
 }
+
+type CustomerDetail struct {
+	Customer             Customer            `json:"customer"`
+	LatestRecommendation AgentRecommendation `json:"latest_recommendation"`
+	ProfileEvidence      []string            `json:"profile_evidence"`
+	RecentTasks          []FollowupTask      `json:"recent_tasks"`
+	RecentAgentRuns      []AgentRunSummary   `json:"recent_agent_runs"`
+}
+
+type AgentRunSummary struct {
+	ID            string   `json:"id"`
+	Status        string   `json:"status"`
+	TaskType      string   `json:"task_type"`
+	Model         string   `json:"model"`
+	PromptVersion string   `json:"prompt_version"`
+	InputSummary  string   `json:"input_summary"`
+	RiskFlags     []string `json:"risk_flags"`
+	CreatedAt     string   `json:"created_at"`
+	CompletedAt   string   `json:"completed_at"`
+}
+
+type ReviewInsight struct {
+	Title      string `json:"title"`
+	Evidence   string `json:"evidence"`
+	Suggestion string `json:"suggestion"`
+}
+
+type StageDistribution struct {
+	Stage CustomerStage `json:"stage"`
+	Count int           `json:"count"`
+}
+
+type ReviewSummary struct {
+	Metrics              []Metric            `json:"metrics"`
+	StageDistribution    []StageDistribution `json:"stage_distribution"`
+	OpportunityCustomers []Customer          `json:"opportunity_customers"`
+	RiskCustomers        []Customer          `json:"risk_customers"`
+	Insights             []ReviewInsight     `json:"insights"`
+	SampleWarning        *string             `json:"sample_warning"`
+}

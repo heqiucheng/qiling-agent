@@ -80,6 +80,35 @@ func TestCustomersEndpointFiltersAndPaginates(t *testing.T) {
 	}
 }
 
+func TestCustomerDetailEndpoint(t *testing.T) {
+	body := getJSON(t, "/api/customers/cus_001")
+	data := responseData(t, body)
+
+	if _, ok := data["customer"].(map[string]any); !ok {
+		t.Fatalf("expected customer object, got %#v", data["customer"])
+	}
+	if _, ok := data["latest_recommendation"].(map[string]any); !ok {
+		t.Fatalf("expected latest recommendation object, got %#v", data["latest_recommendation"])
+	}
+	evidence, ok := data["profile_evidence"].([]any)
+	if !ok || len(evidence) == 0 {
+		t.Fatalf("expected profile evidence, got %#v", data["profile_evidence"])
+	}
+}
+
+func TestCustomerConversationsEndpoint(t *testing.T) {
+	body := getJSON(t, "/api/customers/cus_001/conversations?page=1&page_size=10")
+	data := responseData(t, body)
+
+	if data["total"] != float64(2) {
+		t.Fatalf("expected two messages, got %#v", data["total"])
+	}
+	items, ok := data["items"].([]any)
+	if !ok || len(items) == 0 {
+		t.Fatalf("expected messages, got %#v", data["items"])
+	}
+}
+
 func TestFollowupTasksEndpointFiltersByStatus(t *testing.T) {
 	body := getJSON(t, "/api/followup-tasks?status=pending")
 	data := responseData(t, body)
@@ -97,6 +126,23 @@ func TestFollowupTasksEndpointFiltersByStatus(t *testing.T) {
 	}
 	if _, ok := first["recommendation"].(map[string]any); !ok {
 		t.Fatalf("expected recommendation object, got %#v", first["recommendation"])
+	}
+}
+
+func TestReviewSummaryEndpoint(t *testing.T) {
+	body := getJSON(t, "/api/review-reports/summary")
+	data := responseData(t, body)
+
+	metrics, ok := data["metrics"].([]any)
+	if !ok || len(metrics) == 0 {
+		t.Fatalf("expected metrics, got %#v", data["metrics"])
+	}
+	insights, ok := data["insights"].([]any)
+	if !ok || len(insights) == 0 {
+		t.Fatalf("expected insights, got %#v", data["insights"])
+	}
+	if data["sample_warning"] == nil {
+		t.Fatal("expected sample warning for small mock dataset")
 	}
 }
 

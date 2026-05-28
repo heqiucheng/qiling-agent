@@ -18,11 +18,20 @@ func NewRouter(cfg config.Config) http.Handler {
 	customersHandler := handler.CustomersHandler{Service: qilingService}
 	followupTasksHandler := handler.FollowupTasksHandler{Service: qilingService}
 	uploadsHandler := handler.UploadsHandler{Service: qilingService}
+	reviewReportsHandler := handler.ReviewReportsHandler{Service: qilingService}
 
 	mux.Handle("GET /api/health", handler.HealthHandler{Version: "0.1.0", Env: cfg.Env})
 	mux.HandleFunc("GET /api/dashboard/summary", dashboardHandler.Summary)
 	mux.HandleFunc("GET /api/customers", customersHandler.List)
+	mux.HandleFunc("GET /api/customers/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/conversations") {
+			customersHandler.Conversations(w, r)
+			return
+		}
+		customersHandler.Detail(w, r)
+	})
 	mux.HandleFunc("GET /api/followup-tasks", followupTasksHandler.List)
+	mux.HandleFunc("GET /api/review-reports/summary", reviewReportsHandler.Summary)
 	mux.HandleFunc("POST /api/uploads/conversations", uploadsHandler.CreateConversation)
 	mux.HandleFunc("GET /api/uploads/", uploadsHandler.Get)
 	mux.HandleFunc("POST /api/uploads/", func(w http.ResponseWriter, r *http.Request) {

@@ -129,3 +129,34 @@ export interface RegenerateTaskResultDto {
   agent_run_id: string;
   recommendation: AgentRecommendationDto;
 }
+
+export interface ConversationMessageDto {
+  id: string;
+  sender_type: "customer" | "sales";
+  sender_name: string;
+  content: string;
+  sent_at: string;
+}
+
+export interface CustomerDetailDto {
+  customer: CustomerDto;
+  latest_recommendation: AgentRecommendationDto;
+  profile_evidence: string[];
+  recent_tasks: FollowupTaskDto[];
+  recent_agent_runs: Array<Record<string, unknown>>;
+}
+
+export interface ReviewInsightDto {
+  title: string;
+  evidence: string;
+  suggestion: string;
+}
+
+export interface ReviewSummaryDto {
+  metrics: MetricDto[];
+  stage_distribution: Array<{ stage: string; count: number }>;
+  opportunity_customers: CustomerDto[];
+  risk_customers: CustomerDto[];
+  insights: ReviewInsightDto[];
+  sample_warning: string | null;
+}

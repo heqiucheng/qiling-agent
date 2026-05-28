@@ -57,6 +57,47 @@ func (s *QilingService) Customers(r *http.Request) PageResult[domain.Customer] {
 	return NewPageResult(filtered, PageRequestFromQuery(r))
 }
 
+func (s *QilingService) CustomerDetail(customerID string) (domain.CustomerDetail, error) {
+	customer, ok := s.store.Customer(customerID)
+	if !ok {
+		return domain.CustomerDetail{}, apperror.New("NOT_FOUND", "客户不存在", map[string]any{"customer_id": customerID})
+	}
+
+	tasks := s.store.FollowupTasksByCustomer(customerID)
+	var recommendation domain.AgentRecommendation
+	if len(tasks) > 0 {
+		recommendation = tasks[0].Recommendation
+	}
+
+	return domain.CustomerDetail{
+		Customer:             customer,
+		LatestRecommendation: recommendation,
+		ProfileEvidence: []string{
+			"客户主要顾虑：" + strings.Join(customer.Concerns, "、"),
+			"当前阶段：" + string(customer.Stage),
+			"最近沟通时间：" + customer.LastContactAt,
+		},
+		RecentTasks: tasks,
+		RecentAgentRuns: []domain.AgentRunSummary{
+			{
+				ID:            "run_" + customer.ID,
+				Status:        "succeeded",
+				TaskType:      "generate_followup_script",
+				Model:         "mock-local-v1",
+				PromptVersion: "followup_v1",
+				InputSummary:  customer.ProfileSummary,
+				RiskFlags:     customer.RiskFlags,
+				CreatedAt:     "2026-05-28T10:00:00Z",
+				CompletedAt:   "2026-05-28T10:00:03Z",
+			},
+		},
+	}, nil
+}
+
+func (s *QilingService) CustomerConversations(customerID string, r *http.Request) PageResult[domain.ConversationMessage] {
+	return NewPageResult(s.store.ConversationMessages(customerID), PageRequestFromQuery(r))
+}
+
 func (s *QilingService) FollowupTasks(r *http.Request) PageResult[domain.FollowupTask] {
 	query := r.URL.Query()
 	tasks := s.store.FollowupTasks()
@@ -74,6 +115,38 @@ func (s *QilingService) FollowupTasks(r *http.Request) PageResult[domain.Followu
 		filtered = append(filtered, task)
 	}
 	return NewPageResult(filtered, PageRequestFromQuery(r))
+}
+
+func (s *QilingService) ReviewSummary() domain.ReviewSummary {
+	customers := s.store.Customers()
+	tasks := s.store.FollowupTasks()
+	riskCustomers := filterCustomers(customers, func(c domain.Customer) bool {
+		return len(c.RiskFlags) > 0 || c.Stage == domain.StageSilent || c.Stage == domain.StageChurnRisk
+	})
+	opportunityCustomers := filterCustomers(customers, func(c domain.Customer) bool { return c.Intent == domain.IntentHigh })
+
+	var sampleWarning *string
+	if len(customers) < 10 {
+		warning := "当前样本不足 10 个客户，复盘建议仅供参考。"
+		sampleWarning = &warning
+	}
+
+	return domain.ReviewSummary{
+		Metrics: []domain.Metric{
+			{Key: "customers_total", Label: "客户总数", Value: len(customers), Hint: "当前 mock 样本"},
+			{Key: "pending_tasks", Label: "待确认话术", Value: len(tasks), Hint: "建议优先处理"},
+			{Key: "high_intent_customers", Label: "高意向客户", Value: len(opportunityCustomers), Hint: "可推进成交"},
+			{Key: "risk_customers", Label: "风险客户", Value: len(riskCustomers), Hint: "需要及时介入"},
+		},
+		StageDistribution:    buildStageDistribution(customers),
+		OpportunityCustomers: opportunityCustomers,
+		RiskCustomers:        riskCustomers,
+		Insights: []domain.ReviewInsight{
+			{Title: "价格异议集中", Evidence: "高意向客户中存在价格/方案异议。", Suggestion: "先补充案例证明和方案价值解释，不直接承诺优惠。"},
+			{Title: "沉默客户需要唤醒", Evidence: "存在超过 72 小时未回复客户。", Suggestion: "使用轻触达案例话术，避免连续催促。"},
+		},
+		SampleWarning: sampleWarning,
+	}
 }
 
 type UploadConversationRequest struct {
@@ -197,4 +270,21 @@ func filterCustomers(customers []domain.Customer, keep func(domain.Customer) boo
 		}
 	}
 	return filtered
+}
+
+func buildStageDistribution(customers []domain.Customer) []domain.StageDistribution {
+	counts := map[domain.CustomerStage]int{}
+	order := make([]domain.CustomerStage, 0)
+	for _, customer := range customers {
+		if _, exists := counts[customer.Stage]; !exists {
+			order = append(order, customer.Stage)
+		}
+		counts[customer.Stage]++
+	}
+
+	distribution := make([]domain.StageDistribution, 0, len(order))
+	for _, stage := range order {
+		distribution = append(distribution, domain.StageDistribution{Stage: stage, Count: counts[stage]})
+	}
+	return distribution
 }

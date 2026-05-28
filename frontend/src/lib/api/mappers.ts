@@ -5,7 +5,10 @@ import type { DashboardSummary } from "../../types/dashboard";
 import type { FollowupTask } from "../../types/followup";
 import type { ReviewMetric } from "../../types/review";
 import type { ConfirmUploadResult, UploadConversationResult } from "../../types/upload";
-import type { AgentRecommendationDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, MetricDto, PageDto } from "./dto";
+import type { ConversationMessage } from "../../types/conversation";
+import type { CustomerDetail } from "../../types/customerDetail";
+import type { ReviewInsight, ReviewSummary } from "../../types/review";
+import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, MetricDto, PageDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
 import type { ConfirmUploadResultDto, UploadConversationResultDto } from "./dto";
 
 export function mapCustomer(dto: CustomerDto): Customer {
@@ -99,5 +102,41 @@ export function mapConfirmUploadResult(dto: ConfirmUploadResultDto): ConfirmUplo
     agentRunId: dto.agent_run_id,
     followupTaskId: dto.followup_task_id,
     status: dto.status
+  };
+}
+
+export function mapConversationMessage(dto: ConversationMessageDto): ConversationMessage {
+  return {
+    id: dto.id,
+    senderType: dto.sender_type,
+    senderName: dto.sender_name,
+    content: dto.content,
+    sentAt: dto.sent_at
+  };
+}
+
+export function mapCustomerDetail(dto: CustomerDetailDto, messages: ConversationMessage[]): CustomerDetail {
+  return {
+    customer: mapCustomer(dto.customer),
+    latestRecommendation: mapRecommendation(dto.latest_recommendation),
+    profileEvidence: dto.profile_evidence,
+    recentTasks: dto.recent_tasks.map(mapFollowupTask),
+    conversationMessages: messages
+  };
+}
+
+export function mapReviewInsight(dto: ReviewInsightDto): ReviewInsight {
+  return {
+    title: dto.title,
+    evidence: dto.evidence,
+    suggestion: dto.suggestion
+  };
+}
+
+export function mapReviewSummary(dto: ReviewSummaryDto): ReviewSummary {
+  return {
+    metrics: dto.metrics.map(mapMetric),
+    insights: dto.insights.map(mapReviewInsight),
+    sampleWarning: dto.sample_warning ?? undefined
   };
 }
