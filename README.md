@@ -59,6 +59,7 @@ Frontend:
 
 ```powershell
 cd frontend
+npm run dev
 npm run lint
 npm run typecheck
 npm run test
@@ -72,6 +73,8 @@ cd backend
 go test ./...
 go run ./cmd/server
 ```
+
+Local frontend development proxies `/api` requests to `http://127.0.0.1:8080`, so start the backend before checking API-backed pages.
 
 ## 当前文档
 
