@@ -324,11 +324,12 @@ func MatchCustomer(customer domain.Customer, keyword string, stage string, inten
 
 func inferCustomerName(content string) string {
 	content = strings.TrimSpace(content)
-	if strings.Contains(content, "王") {
-		return "王女士"
-	}
-	if strings.Contains(content, "李") {
-		return "李先生"
+	fields := strings.Fields(content)
+	if len(fields) > 0 {
+		first := strings.Trim(fields[0], "：:，,。 ")
+		if first != "" {
+			return first
+		}
 	}
 	return "新客户"
 }

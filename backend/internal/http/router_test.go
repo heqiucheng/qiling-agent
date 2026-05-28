@@ -116,6 +116,13 @@ func TestUploadConversationFlow(t *testing.T) {
 	if uploadData["status"] != "needs_confirmation" {
 		t.Fatalf("expected needs_confirmation, got %#v", uploadData["status"])
 	}
+	parsedCustomer, ok := uploadData["parsed_customer"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected parsed customer, got %#v", uploadData["parsed_customer"])
+	}
+	if parsedCustomer["name"] != "王女士" {
+		t.Fatalf("expected parsed customer name 王女士, got %#v", parsedCustomer["name"])
+	}
 
 	getBody := requestJSON(t, router, http.MethodGet, "/api/uploads/"+uploadID, "", http.StatusOK)
 	getData := responseData(t, getBody)
