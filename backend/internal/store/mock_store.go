@@ -1,12 +1,18 @@
 package store
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 
+	"github.com/heqiucheng/qiling-agent/backend/internal/apperror"
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
 )
 
 type MockStore struct {
+	mu        sync.Mutex
+	nextID    int
+	uploads   map[string]domain.UploadRecord
 	customers []domain.Customer
 	tasks     []domain.FollowupTask
 }
@@ -58,6 +64,8 @@ func NewMockStore() *MockStore {
 	}
 
 	return &MockStore{
+		nextID:    4,
+		uploads:   map[string]domain.UploadRecord{},
 		customers: customers,
 		tasks: []domain.FollowupTask{
 			newTask("task_001", customers[0], "price_objection", "2026-05-28T10:00:00Z", domain.AgentRecommendation{
@@ -95,11 +103,192 @@ func NewMockStore() *MockStore {
 }
 
 func (s *MockStore) Customers() []domain.Customer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return append([]domain.Customer(nil), s.customers...)
 }
 
 func (s *MockStore) FollowupTasks() []domain.FollowupTask {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return append([]domain.FollowupTask(nil), s.tasks...)
+}
+
+func (s *MockStore) CreateUpload(sourceType string, content string, ownerID string) domain.UploadRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	id := fmt.Sprintf("upl_%03d", s.nextID)
+	s.nextID++
+
+	record := domain.UploadRecord{
+		ID:         id,
+		Status:     domain.UploadNeedsConfirmation,
+		SourceType: sourceType,
+		ParsedCustomer: domain.ParsedCustomer{
+			Name:      inferCustomerName(content),
+			OwnerName: ownerName(ownerID),
+		},
+		Messages: []domain.ConversationMessage{
+			{
+				ID:         "msg_" + id,
+				SenderType: "customer",
+				SenderName: inferCustomerName(content),
+				Content:    strings.TrimSpace(content),
+				SentAt:     "2026-05-28T10:30:00Z",
+			},
+		},
+		Warnings:  []string{},
+		CreatedAt: "2026-05-28T10:30:00Z",
+	}
+	s.uploads[id] = record
+	return record
+}
+
+func (s *MockStore) Upload(id string) (domain.UploadRecord, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	record, ok := s.uploads[id]
+	return record, ok
+}
+
+func (s *MockStore) ConfirmUpload(uploadID string, customerName string, ownerID string) (domain.ConfirmUploadResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	record, ok := s.uploads[uploadID]
+	if !ok {
+		return domain.ConfirmUploadResult{}, apperror.New("NOT_FOUND", "上传记录不存在", map[string]any{"upload_id": uploadID})
+	}
+
+	if strings.TrimSpace(customerName) == "" {
+		customerName = record.ParsedCustomer.Name
+	}
+
+	customerID := fmt.Sprintf("cus_%03d", s.nextID)
+	taskID := fmt.Sprintf("task_%03d", s.nextID)
+	agentRunID := fmt.Sprintf("run_%03d", s.nextID)
+	conversationID := fmt.Sprintf("conv_%03d", s.nextID)
+	s.nextID++
+
+	customer := domain.Customer{
+		ID:             customerID,
+		Name:           customerName,
+		Source:         "上传聊天记录",
+		Owner:          domain.Owner{ID: ownerID, Name: ownerName(ownerID)},
+		Stage:          domain.StagePriceObjection,
+		Intent:         domain.IntentHigh,
+		Concerns:       []string{"价格", "效果"},
+		Tags:           []string{"价格敏感"},
+		ProfileSummary: "由上传聊天记录生成的 mock 客户画像，客户正在比较价格和效果。",
+		LastContactAt:  "2026-05-28T10:30:00Z",
+		PendingTasks:   1,
+		RiskFlags:      []string{"涉及价格承诺，需人工确认"},
+	}
+
+	task := newTask(taskID, customer, "price_objection", "2026-05-28T10:31:00Z", domain.AgentRecommendation{
+		CustomerStage:     domain.StagePriceObjection,
+		IntentLevel:       domain.IntentHigh,
+		MainConcerns:      []string{"价格", "效果"},
+		RecommendedAction: "解释价值并提供案例",
+		Script:            "您好，您刚才提到价格和效果，我建议先结合您的使用场景看投入产出，我可以给您整理一个接近情况的案例。",
+		Reasoning:         "上传内容显示客户关注价格和效果，需要先建立价值感再推动下一步。",
+		RiskFlags:         []string{"避免直接承诺优惠或效果"},
+		NextFollowupTime:  "2026-05-28T16:00:00Z",
+	})
+
+	record.Status = domain.UploadConfirmed
+	s.uploads[uploadID] = record
+	s.customers = append(s.customers, customer)
+	s.tasks = append(s.tasks, task)
+
+	return domain.ConfirmUploadResult{
+		CustomerID:     customerID,
+		ConversationID: conversationID,
+		AgentRunID:     agentRunID,
+		FollowupTaskID: taskID,
+		Status:         domain.UploadConfirmed,
+	}, nil
+}
+
+func (s *MockStore) CopyTask(taskID string, copiedAt string) (domain.TaskCopyResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	index, err := s.taskIndex(taskID)
+	if err != nil {
+		return domain.TaskCopyResult{}, err
+	}
+	if s.tasks[index].Status != domain.FollowupPending {
+		return domain.TaskCopyResult{}, apperror.New("TASK_ALREADY_FINALIZED", "任务已经处理，不能重复操作", map[string]any{"task_id": taskID})
+	}
+	s.tasks[index].Status = domain.FollowupCopied
+	return domain.TaskCopyResult{TaskID: taskID, Status: domain.FollowupCopied, CopiedAt: copiedAt}, nil
+}
+
+func (s *MockStore) SkipTask(taskID string, reason string) (domain.TaskStatusResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	index, err := s.taskIndex(taskID)
+	if err != nil {
+		return domain.TaskStatusResult{}, err
+	}
+	if s.tasks[index].Status != domain.FollowupPending {
+		return domain.TaskStatusResult{}, apperror.New("TASK_ALREADY_FINALIZED", "任务已经处理，不能重复操作", map[string]any{"task_id": taskID})
+	}
+	s.tasks[index].Status = domain.FollowupSkipped
+	s.tasks[index].Feedback = &domain.TaskFeedback{Reason: reason}
+	return domain.TaskStatusResult{TaskID: taskID, Status: domain.FollowupSkipped}, nil
+}
+
+func (s *MockStore) MarkTaskWrong(taskID string, reason string) (domain.MarkWrongResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	index, err := s.taskIndex(taskID)
+	if err != nil {
+		return domain.MarkWrongResult{}, err
+	}
+	if s.tasks[index].Status != domain.FollowupPending {
+		return domain.MarkWrongResult{}, apperror.New("TASK_ALREADY_FINALIZED", "任务已经处理，不能重复操作", map[string]any{"task_id": taskID})
+	}
+	s.tasks[index].Status = domain.FollowupMarkedWrong
+	s.tasks[index].Feedback = &domain.TaskFeedback{Reason: reason}
+	return domain.MarkWrongResult{TaskID: taskID, Status: domain.FollowupMarkedWrong, FeedbackID: "fb_" + taskID}, nil
+}
+
+func (s *MockStore) RegenerateTask(taskID string, instruction string) (domain.RegenerateTaskResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	index, err := s.taskIndex(taskID)
+	if err != nil {
+		return domain.RegenerateTaskResult{}, err
+	}
+
+	recommendation := s.tasks[index].Recommendation
+	if strings.TrimSpace(instruction) != "" {
+		recommendation.Script = recommendation.Script + "（已按反馈调整语气）"
+		recommendation.Reasoning = recommendation.Reasoning + " 本次换一种话术保留原客户上下文，仅调整表达方式。"
+	}
+	s.tasks[index].Recommendation = recommendation
+
+	return domain.RegenerateTaskResult{
+		TaskID:         taskID,
+		AgentRunID:     "run_" + taskID,
+		Recommendation: recommendation,
+	}, nil
+}
+
+func (s *MockStore) taskIndex(taskID string) (int, error) {
+	for index, task := range s.tasks {
+		if task.ID == taskID {
+			return index, nil
+		}
+	}
+	return 0, apperror.New("NOT_FOUND", "跟进任务不存在", map[string]any{"task_id": taskID})
 }
 
 func newTask(id string, customer domain.Customer, taskType string, generatedAt string, recommendation domain.AgentRecommendation) domain.FollowupTask {
@@ -131,4 +320,24 @@ func MatchCustomer(customer domain.Customer, keyword string, stage string, inten
 		return false
 	}
 	return true
+}
+
+func inferCustomerName(content string) string {
+	content = strings.TrimSpace(content)
+	if strings.Contains(content, "王") {
+		return "王女士"
+	}
+	if strings.Contains(content, "李") {
+		return "李先生"
+	}
+	return "新客户"
+}
+
+func ownerName(ownerID string) string {
+	switch ownerID {
+	case "usr_002":
+		return "销售B"
+	default:
+		return "销售A"
+	}
 }

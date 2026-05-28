@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -99,6 +100,111 @@ func TestFollowupTasksEndpointFiltersByStatus(t *testing.T) {
 	}
 }
 
+func TestUploadConversationFlow(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	uploadBody := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"content": "王女士 09:20 这个价格还能优惠吗？",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	uploadData := responseData(t, uploadBody)
+	uploadID, ok := uploadData["upload_id"].(string)
+	if !ok || uploadID == "" {
+		t.Fatalf("expected upload id, got %#v", uploadData["upload_id"])
+	}
+	if uploadData["status"] != "needs_confirmation" {
+		t.Fatalf("expected needs_confirmation, got %#v", uploadData["status"])
+	}
+
+	getBody := requestJSON(t, router, http.MethodGet, "/api/uploads/"+uploadID, "", http.StatusOK)
+	getData := responseData(t, getBody)
+	if getData["id"] != uploadID {
+		t.Fatalf("expected upload id %s, got %#v", uploadID, getData["id"])
+	}
+
+	confirmBody := postJSON(t, router, "/api/uploads/"+uploadID+"/confirm", `{
+		"customer_name": "王女士",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	confirmData := responseData(t, confirmBody)
+	if confirmData["status"] != "confirmed" {
+		t.Fatalf("expected confirmed, got %#v", confirmData["status"])
+	}
+	if confirmData["followup_task_id"] == "" {
+		t.Fatalf("expected followup task id, got %#v", confirmData["followup_task_id"])
+	}
+}
+
+func TestUploadConversationRejectsEmptyContent(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+	body := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"content": "",
+		"owner_id": "usr_001"
+	}`, http.StatusBadRequest)
+
+	if body.Error == nil || body.Error.Code != "EMPTY_CONTENT" {
+		t.Fatalf("expected EMPTY_CONTENT, got %#v", body.Error)
+	}
+}
+
+func TestFollowupTaskActions(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	copyBody := postJSON(t, router, "/api/followup-tasks/task_001/copy", `{
+		"copied_script": "您好，刚才您提到比较关注价格...",
+		"client_copied_at": "2026-05-28T10:05:00Z"
+	}`, http.StatusOK)
+	copyData := responseData(t, copyBody)
+	if copyData["status"] != "copied" {
+		t.Fatalf("expected copied, got %#v", copyData["status"])
+	}
+
+	repeatBody := postJSON(t, router, "/api/followup-tasks/task_001/skip", `{
+		"reason": "重复处理"
+	}`, http.StatusConflict)
+	if repeatBody.Error == nil || repeatBody.Error.Code != "TASK_ALREADY_FINALIZED" {
+		t.Fatalf("expected TASK_ALREADY_FINALIZED, got %#v", repeatBody.Error)
+	}
+
+	skipBody := postJSON(t, router, "/api/followup-tasks/task_002/skip", `{
+		"reason": "客户刚刚回复"
+	}`, http.StatusOK)
+	skipData := responseData(t, skipBody)
+	if skipData["status"] != "skipped" {
+		t.Fatalf("expected skipped, got %#v", skipData["status"])
+	}
+
+	markWrongBody := postJSON(t, router, "/api/followup-tasks/task_003/mark-wrong", `{
+		"reason": "客户不是价格异议",
+		"wrong_fields": ["customer_stage"]
+	}`, http.StatusOK)
+	markWrongData := responseData(t, markWrongBody)
+	if markWrongData["status"] != "marked_wrong" {
+		t.Fatalf("expected marked_wrong, got %#v", markWrongData["status"])
+	}
+}
+
+func TestRegenerateTaskKeepsTaskPending(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	body := postJSON(t, router, "/api/followup-tasks/task_001/regenerate", `{
+		"instruction": "语气更自然一点"
+	}`, http.StatusOK)
+	data := responseData(t, body)
+	if data["agent_run_id"] == "" {
+		t.Fatalf("expected agent run id, got %#v", data["agent_run_id"])
+	}
+	recommendation, ok := data["recommendation"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected recommendation object, got %#v", data["recommendation"])
+	}
+	if recommendation["script"] == "" {
+		t.Fatalf("expected regenerated script, got %#v", recommendation["script"])
+	}
+}
+
 func getJSON(t *testing.T, path string) httpx.Response {
 	t.Helper()
 
@@ -120,6 +226,37 @@ func getJSON(t *testing.T, path string) httpx.Response {
 		t.Fatalf("expected nil error, got %#v", body.Error)
 	}
 	return body
+}
+
+func postJSON(t *testing.T, router http.Handler, path string, payload string, expectedStatus int) httpx.Response {
+	t.Helper()
+	return requestJSON(t, router, http.MethodPost, path, payload, expectedStatus)
+}
+
+func requestJSON(t *testing.T, router http.Handler, method string, path string, payload string, expectedStatus int) httpx.Response {
+	t.Helper()
+
+	var body *bytes.Reader
+	if payload == "" {
+		body = bytes.NewReader(nil)
+	} else {
+		body = bytes.NewReader([]byte(payload))
+	}
+	req := httptest.NewRequest(method, path, body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != expectedStatus {
+		t.Fatalf("expected status %d, got %d with body %s", expectedStatus, rec.Code, rec.Body.String())
+	}
+
+	var response httpx.Response
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return response
 }
 
 func responseData(t *testing.T, body httpx.Response) map[string]any {

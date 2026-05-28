@@ -33,6 +33,16 @@ const (
 	FollowupMarkedWrong FollowupTaskStatus = "marked_wrong"
 )
 
+type UploadStatus string
+
+const (
+	UploadUploaded          UploadStatus = "uploaded"
+	UploadParsed            UploadStatus = "parsed"
+	UploadNeedsConfirmation UploadStatus = "needs_confirmation"
+	UploadConfirmed         UploadStatus = "confirmed"
+	UploadFailed            UploadStatus = "failed"
+)
+
 type Owner struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -76,6 +86,69 @@ type FollowupTask struct {
 
 type TaskFeedback struct {
 	Reason string `json:"reason"`
+}
+
+type ParsedCustomer struct {
+	Name      string `json:"name"`
+	OwnerName string `json:"owner_name"`
+}
+
+type ConversationMessage struct {
+	ID         string `json:"id"`
+	SenderType string `json:"sender_type"`
+	SenderName string `json:"sender_name"`
+	Content    string `json:"content"`
+	SentAt     string `json:"sent_at"`
+}
+
+type UploadRecord struct {
+	ID             string                `json:"id"`
+	Status         UploadStatus          `json:"status"`
+	SourceType     string                `json:"source_type"`
+	ParsedCustomer ParsedCustomer        `json:"parsed_customer"`
+	Messages       []ConversationMessage `json:"messages"`
+	Warnings       []string              `json:"warnings"`
+	CreatedAt      string                `json:"created_at"`
+}
+
+type UploadConversationResult struct {
+	UploadID       string         `json:"upload_id"`
+	Status         UploadStatus   `json:"status"`
+	ParsedCustomer ParsedCustomer `json:"parsed_customer"`
+	MessageCount   int            `json:"message_count"`
+	Warnings       []string       `json:"warnings"`
+	NextAction     string         `json:"next_action"`
+}
+
+type ConfirmUploadResult struct {
+	CustomerID     string       `json:"customer_id"`
+	ConversationID string       `json:"conversation_id"`
+	AgentRunID     string       `json:"agent_run_id"`
+	FollowupTaskID string       `json:"followup_task_id"`
+	Status         UploadStatus `json:"status"`
+}
+
+type TaskCopyResult struct {
+	TaskID   string             `json:"task_id"`
+	Status   FollowupTaskStatus `json:"status"`
+	CopiedAt string             `json:"copied_at"`
+}
+
+type TaskStatusResult struct {
+	TaskID string             `json:"task_id"`
+	Status FollowupTaskStatus `json:"status"`
+}
+
+type MarkWrongResult struct {
+	TaskID     string             `json:"task_id"`
+	Status     FollowupTaskStatus `json:"status"`
+	FeedbackID string             `json:"feedback_id"`
+}
+
+type RegenerateTaskResult struct {
+	TaskID         string              `json:"task_id"`
+	AgentRunID     string              `json:"agent_run_id"`
+	Recommendation AgentRecommendation `json:"recommendation"`
 }
 
 type Metric struct {

@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/config"
 	"github.com/heqiucheng/qiling-agent/backend/internal/http/handler"
@@ -16,11 +17,35 @@ func NewRouter(cfg config.Config) http.Handler {
 	dashboardHandler := handler.DashboardHandler{Service: qilingService}
 	customersHandler := handler.CustomersHandler{Service: qilingService}
 	followupTasksHandler := handler.FollowupTasksHandler{Service: qilingService}
+	uploadsHandler := handler.UploadsHandler{Service: qilingService}
 
 	mux.Handle("GET /api/health", handler.HealthHandler{Version: "0.1.0", Env: cfg.Env})
 	mux.HandleFunc("GET /api/dashboard/summary", dashboardHandler.Summary)
 	mux.HandleFunc("GET /api/customers", customersHandler.List)
 	mux.HandleFunc("GET /api/followup-tasks", followupTasksHandler.List)
+	mux.HandleFunc("POST /api/uploads/conversations", uploadsHandler.CreateConversation)
+	mux.HandleFunc("GET /api/uploads/", uploadsHandler.Get)
+	mux.HandleFunc("POST /api/uploads/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/confirm") {
+			uploadsHandler.Confirm(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
+	mux.HandleFunc("POST /api/followup-tasks/", func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/copy"):
+			followupTasksHandler.Copy(w, r)
+		case strings.HasSuffix(r.URL.Path, "/skip"):
+			followupTasksHandler.Skip(w, r)
+		case strings.HasSuffix(r.URL.Path, "/mark-wrong"):
+			followupTasksHandler.MarkWrong(w, r)
+		case strings.HasSuffix(r.URL.Path, "/regenerate"):
+			followupTasksHandler.Regenerate(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
 
 	return httpx.WithRequestID(mux)
 }
