@@ -36,7 +36,7 @@ Qiling Agent helps private-domain sales teams analyze customer conversations, ge
 Frontend: React + Vite + TypeScript
 Backend: Go
 Architecture: modular monolith for MVP
-Database direction: PostgreSQL, with pgvector evaluation reserved for later AI memory/RAG work
+Database: MySQL for MVP persistence
 ```
 
 ## Repository Structure
@@ -72,6 +72,14 @@ Backend:
 cd backend
 go test ./...
 go run ./cmd/server
+go run ./cmd/dbping
+go run ./cmd/dbmigrate
+```
+
+Backend database:
+
+```powershell
+$env:QILING_DATABASE_URL="root:your_password@tcp(127.0.0.1:3306)/qiling_agent?parseTime=true&charset=utf8mb4&loc=Local"
 ```
 
 Local frontend development proxies `/api` requests to `http://127.0.0.1:8080`, so start the backend before checking API-backed pages.

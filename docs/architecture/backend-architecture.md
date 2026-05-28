@@ -110,16 +110,17 @@ Go 标准库 net/http + chi router
 MVP 推荐：
 
 ```text
-PostgreSQL
+MySQL
 ```
 
 原因：
 
 - 关系型数据适合客户、会话、消息、任务、审计和复盘报表。
-- 后续可用 `pgvector` 承接向量检索，减少早期多数据库复杂度。
-- 事务、索引、JSONB、全文检索能力较完整。
+- 用户当前本地已创建 MySQL 数据库 `qiling_agent`，优先降低本地落地成本。
+- MySQL 的事务、索引、JSON、InnoDB 外键足够支撑 MVP 客户、消息、任务和复盘数据。
+- 后续向量检索不强绑主库，可按阶段评估独立向量库或支持向量能力的存储。
 
-本地开发可以先用 SQLite 或 Postgres Docker，但最终 schema 按 PostgreSQL 设计。
+本地开发默认使用 MySQL。真实连接信息通过 `QILING_DATABASE_URL` 注入，密码不写入仓库。
 
 ## 6. 核心模块
 
@@ -323,7 +324,7 @@ MVP 可先使用 Go goroutine + 简单任务表/状态机；如果任务量上�
 长期记忆：客户画像、历史沟通、成交偏好、销售反馈
 短期记忆：当前会话上下文、最近 N 条消息、当前任务状态
 RAG 数据：产品知识、案例素材、销售 SOP、历史有效话术
-向量存储：优先评估 PostgreSQL + pgvector，必要时再评估专用向量库
+向量存储：后续单独评估专用向量库或 MySQL 生态可用方案，当前不直接引入
 ```
 
 当前阶段不直接引入向量库，避免过早复杂化。
@@ -378,6 +379,6 @@ agent 输出 schema 测试
 - 后端语言：Go。
 - 架构：模块化单体。
 - HTTP：优先 `net/http + chi`。
-- 数据库：按 PostgreSQL 设计，后续可评估 pgvector。
+- 数据库：按 MySQL 设计，库名 `qiling_agent`。
 - AI：结构化输出 + AgentRun 可追溯。
 - 企业微信：必须先本地验证接口，再写业务功能。

@@ -6,8 +6,9 @@ import (
 )
 
 type Config struct {
-	Addr string
-	Env  string
+	Addr        string
+	Env         string
+	DatabaseURL string
 }
 
 func Load() Config {
@@ -21,5 +22,10 @@ func Load() Config {
 		env = "development"
 	}
 
-	return Config{Addr: addr, Env: env}
+	databaseURL := strings.TrimSpace(os.Getenv("QILING_DATABASE_URL"))
+	if databaseURL == "" {
+		databaseURL = "root:password@tcp(127.0.0.1:3306)/qiling_agent?parseTime=true&charset=utf8mb4&loc=Local"
+	}
+
+	return Config{Addr: addr, Env: env, DatabaseURL: databaseURL}
 }
