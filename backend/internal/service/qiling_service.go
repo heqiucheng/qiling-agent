@@ -40,21 +40,20 @@ func (s *QilingService) DashboardSummary(actor domain.Actor) domain.DashboardSum
 
 func (s *QilingService) Customers(r *http.Request, actor domain.Actor) PageResult[domain.Customer] {
 	query := r.URL.Query()
-	customers := visibleCustomers(s.store.Customers(), actor)
-	filtered := make([]domain.Customer, 0, len(customers))
-	for _, customer := range customers {
-		if store.MatchCustomer(
-			customer,
-			query.Get("keyword"),
-			query.Get("stage"),
-			query.Get("intent"),
-			query.Get("owner_id"),
-			query.Get("risk"),
-		) {
-			filtered = append(filtered, customer)
-		}
+	page := PageRequestFromQuery(r)
+	ownerID := query.Get("owner_id")
+	if actor.Role != "manager" {
+		ownerID = actor.UserID
 	}
-	return NewPageResult(filtered, PageRequestFromQuery(r))
+	result := s.store.CustomerPage(store.CustomerFilter{
+		Keyword: query.Get("keyword"),
+		Stage:   query.Get("stage"),
+		Intent:  query.Get("intent"),
+		OwnerID: ownerID,
+		Risk:    query.Get("risk"),
+	}, store.PageRequest{Page: page.Page, PageSize: page.PageSize})
+
+	return NewPageResultWithTotal(result.Items, page, result.Total)
 }
 
 func (s *QilingService) CustomerDetail(customerID string, actor domain.Actor) (domain.CustomerDetail, error) {
@@ -111,21 +110,18 @@ func (s *QilingService) CustomerConversations(customerID string, r *http.Request
 
 func (s *QilingService) FollowupTasks(r *http.Request, actor domain.Actor) PageResult[domain.FollowupTask] {
 	query := r.URL.Query()
-	tasks := visibleTasks(s.store.FollowupTasks(), actor)
-	filtered := make([]domain.FollowupTask, 0, len(tasks))
-	for _, task := range tasks {
-		if query.Get("status") != "" && string(task.Status) != query.Get("status") {
-			continue
-		}
-		if query.Get("intent") != "" && string(task.Customer.Intent) != query.Get("intent") {
-			continue
-		}
-		if query.Get("owner_id") != "" && task.Customer.Owner.ID != query.Get("owner_id") {
-			continue
-		}
-		filtered = append(filtered, task)
+	page := PageRequestFromQuery(r)
+	ownerID := query.Get("owner_id")
+	if actor.Role != "manager" {
+		ownerID = actor.UserID
 	}
-	return NewPageResult(filtered, PageRequestFromQuery(r))
+	result := s.store.FollowupTaskPage(store.FollowupTaskFilter{
+		Status:  query.Get("status"),
+		Intent:  query.Get("intent"),
+		OwnerID: ownerID,
+	}, store.PageRequest{Page: page.Page, PageSize: page.PageSize})
+
+	return NewPageResultWithTotal(result.Items, page, result.Total)
 }
 
 func (s *QilingService) ReviewSummary(actor domain.Actor) domain.ReviewSummary {

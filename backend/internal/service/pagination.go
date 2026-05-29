@@ -45,6 +45,13 @@ func NewPageResult[T any](items []T, req PageRequest) PageResult[T] {
 	return PageResult[T]{Items: items[start:end], Page: req.Page, PageSize: req.PageSize, Total: total}
 }
 
+func NewPageResultWithTotal[T any](items []T, req PageRequest, total int) PageResult[T] {
+	if items == nil {
+		items = []T{}
+	}
+	return PageResult[T]{Items: items, Page: req.Page, PageSize: req.PageSize, Total: total}
+}
+
 func parsePositiveInt(raw string, fallback int) int {
 	if raw == "" {
 		return fallback

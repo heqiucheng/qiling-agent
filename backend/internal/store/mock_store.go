@@ -108,6 +108,20 @@ func (s *MockStore) Customers() []domain.Customer {
 	return append([]domain.Customer(nil), s.customers...)
 }
 
+func (s *MockStore) CustomerPage(filter CustomerFilter, page PageRequest) CustomerPage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	filtered := make([]domain.Customer, 0, len(s.customers))
+	for _, customer := range s.customers {
+		if MatchCustomer(customer, filter.Keyword, filter.Stage, filter.Intent, filter.OwnerID, filter.Risk) {
+			filtered = append(filtered, customer)
+		}
+	}
+
+	return CustomerPage{Items: paginate(filtered, page), Total: len(filtered)}
+}
+
 func (s *MockStore) Customer(id string) (domain.Customer, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -124,6 +138,27 @@ func (s *MockStore) FollowupTasks() []domain.FollowupTask {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]domain.FollowupTask(nil), s.tasks...)
+}
+
+func (s *MockStore) FollowupTaskPage(filter FollowupTaskFilter, page PageRequest) FollowupTaskPage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	filtered := make([]domain.FollowupTask, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		if filter.Status != "" && string(task.Status) != filter.Status {
+			continue
+		}
+		if filter.Intent != "" && string(task.Customer.Intent) != filter.Intent {
+			continue
+		}
+		if filter.OwnerID != "" && task.Customer.Owner.ID != filter.OwnerID {
+			continue
+		}
+		filtered = append(filtered, task)
+	}
+
+	return FollowupTaskPage{Items: paginate(filtered, page), Total: len(filtered)}
 }
 
 func (s *MockStore) FollowupTasksByCustomer(customerID string) []domain.FollowupTask {
@@ -391,4 +426,16 @@ func ownerName(ownerID string) string {
 	default:
 		return "销售A"
 	}
+}
+
+func paginate[T any](items []T, page PageRequest) []T {
+	start := (page.Page - 1) * page.PageSize
+	if start >= len(items) {
+		return []T{}
+	}
+	end := start + page.PageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return append([]T(nil), items[start:end]...)
 }

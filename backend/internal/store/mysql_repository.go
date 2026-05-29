@@ -36,6 +36,28 @@ func (r *MySQLRepository) Customers() []domain.Customer {
 	return scanCustomers(rows)
 }
 
+func (r *MySQLRepository) CustomerPage(filter CustomerFilter, page PageRequest) CustomerPage {
+	where, args := customerWhere(filter)
+	total := countRows(r.db, "SELECT COUNT(*) FROM customers c INNER JOIN users u ON u.id = c.owner_id"+where, args)
+
+	query := `
+		SELECT c.id, c.name, c.source, c.owner_id, u.name, c.stage, c.intent,
+		       c.concerns, c.tags, c.profile_summary, c.last_contact_at,
+		       c.pending_tasks, c.risk_flags
+		FROM customers c
+		INNER JOIN users u ON u.id = c.owner_id
+	` + where + " ORDER BY c.last_contact_at DESC, c.id DESC LIMIT ? OFFSET ?"
+	args = append(args, page.PageSize, pageOffset(page))
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return CustomerPage{Items: []domain.Customer{}, Total: 0}
+	}
+	defer rows.Close()
+
+	return CustomerPage{Items: scanCustomers(rows), Total: total}
+}
+
 func (r *MySQLRepository) Customer(id string) (domain.Customer, bool) {
 	row := r.db.QueryRow(`
 		SELECT c.id, c.name, c.source, c.owner_id, u.name, c.stage, c.intent,
@@ -61,6 +83,22 @@ func (r *MySQLRepository) FollowupTasks() []domain.FollowupTask {
 	defer rows.Close()
 
 	return scanFollowupTasks(rows)
+}
+
+func (r *MySQLRepository) FollowupTaskPage(filter FollowupTaskFilter, page PageRequest) FollowupTaskPage {
+	where, args := followupTaskWhere(filter)
+	total := countRows(r.db, "SELECT COUNT(*) FROM followup_tasks t INNER JOIN customers c ON c.id = t.customer_id INNER JOIN users u ON u.id = c.owner_id"+where, args)
+
+	query := followupTaskSelectSQL() + where + " ORDER BY t.generated_at DESC, t.id DESC LIMIT ? OFFSET ?"
+	args = append(args, page.PageSize, pageOffset(page))
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return FollowupTaskPage{Items: []domain.FollowupTask{}, Total: 0}
+	}
+	defer rows.Close()
+
+	return FollowupTaskPage{Items: scanFollowupTasks(rows), Total: total}
 }
 
 func (r *MySQLRepository) FollowupTasksByCustomer(customerID string) []domain.FollowupTask {
@@ -576,4 +614,70 @@ func mustJSON(value any) []byte {
 		return []byte("null")
 	}
 	return raw
+}
+
+func customerWhere(filter CustomerFilter) (string, []any) {
+	conditions := make([]string, 0)
+	args := make([]any, 0)
+
+	if filter.Keyword != "" {
+		conditions = append(conditions, "c.name LIKE ?")
+		args = append(args, "%"+filter.Keyword+"%")
+	}
+	if filter.Stage != "" {
+		conditions = append(conditions, "c.stage = ?")
+		args = append(args, filter.Stage)
+	}
+	if filter.Intent != "" {
+		conditions = append(conditions, "c.intent = ?")
+		args = append(args, filter.Intent)
+	}
+	if filter.OwnerID != "" {
+		conditions = append(conditions, "c.owner_id = ?")
+		args = append(args, filter.OwnerID)
+	}
+	if filter.Risk == "1" {
+		conditions = append(conditions, "JSON_LENGTH(c.risk_flags) > 0")
+	}
+
+	return whereClause(conditions), args
+}
+
+func followupTaskWhere(filter FollowupTaskFilter) (string, []any) {
+	conditions := make([]string, 0)
+	args := make([]any, 0)
+
+	if filter.Status != "" {
+		conditions = append(conditions, "t.status = ?")
+		args = append(args, filter.Status)
+	}
+	if filter.Intent != "" {
+		conditions = append(conditions, "c.intent = ?")
+		args = append(args, filter.Intent)
+	}
+	if filter.OwnerID != "" {
+		conditions = append(conditions, "c.owner_id = ?")
+		args = append(args, filter.OwnerID)
+	}
+
+	return whereClause(conditions), args
+}
+
+func whereClause(conditions []string) string {
+	if len(conditions) == 0 {
+		return ""
+	}
+	return " WHERE " + strings.Join(conditions, " AND ")
+}
+
+func pageOffset(page PageRequest) int {
+	return (page.Page - 1) * page.PageSize
+}
+
+func countRows(db *sql.DB, query string, args []any) int {
+	var total int
+	if err := db.QueryRow(query, args...).Scan(&total); err != nil {
+		return 0
+	}
+	return total
 }
