@@ -139,6 +139,24 @@ func (r *MySQLRepository) ConversationMessages(customerID string) []domain.Conve
 	return messages
 }
 
+func (r *MySQLRepository) ConversationMessagePage(customerID string, page PageRequest) ConversationMessagePage {
+	total := countRows(r.db, "SELECT COUNT(*) FROM conversation_messages WHERE customer_id = ?", []any{customerID})
+
+	rows, err := r.db.Query(`
+		SELECT id, sender_type, sender_name, content, sent_at
+		FROM conversation_messages
+		WHERE customer_id = ?
+		ORDER BY sent_at ASC, id ASC
+		LIMIT ? OFFSET ?
+	`, customerID, page.PageSize, pageOffset(page))
+	if err != nil {
+		return ConversationMessagePage{Items: []domain.ConversationMessage{}, Total: 0}
+	}
+	defer rows.Close()
+
+	return ConversationMessagePage{Items: scanConversationMessages(rows), Total: total}
+}
+
 func (r *MySQLRepository) CreateUpload(sourceType string, content string, ownerID string) (domain.UploadRecord, error) {
 	now := time.Now().UTC()
 	id := makeID("upl", now)
@@ -486,6 +504,23 @@ func scanFollowupTasks(rows *sql.Rows) []domain.FollowupTask {
 		return []domain.FollowupTask{}
 	}
 	return tasks
+}
+
+func scanConversationMessages(rows *sql.Rows) []domain.ConversationMessage {
+	messages := make([]domain.ConversationMessage, 0)
+	for rows.Next() {
+		var message domain.ConversationMessage
+		var sentAt time.Time
+		if err := rows.Scan(&message.ID, &message.SenderType, &message.SenderName, &message.Content, &sentAt); err != nil {
+			return []domain.ConversationMessage{}
+		}
+		message.SentAt = formatTime(sentAt)
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		return []domain.ConversationMessage{}
+	}
+	return messages
 }
 
 func decodeStringList(raw []byte) []string {

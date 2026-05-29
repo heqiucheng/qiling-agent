@@ -199,6 +199,11 @@ func (s *MockStore) ConversationMessages(customerID string) []domain.Conversatio
 	}
 }
 
+func (s *MockStore) ConversationMessagePage(customerID string, page PageRequest) ConversationMessagePage {
+	messages := s.ConversationMessages(customerID)
+	return ConversationMessagePage{Items: paginate(messages, page), Total: len(messages)}
+}
+
 func (s *MockStore) CreateUpload(sourceType string, content string, ownerID string) (domain.UploadRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

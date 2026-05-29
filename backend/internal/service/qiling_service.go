@@ -105,7 +105,9 @@ func (s *QilingService) CustomerConversations(customerID string, r *http.Request
 	if !canSeeCustomer(customer, actor) {
 		return PageResult[domain.ConversationMessage]{}, apperror.New("FORBIDDEN", "无权查看该客户聊天记录", map[string]any{"customer_id": customerID})
 	}
-	return NewPageResult(s.store.ConversationMessages(customerID), PageRequestFromQuery(r)), nil
+	page := PageRequestFromQuery(r)
+	result := s.store.ConversationMessagePage(customerID, store.PageRequest{Page: page.Page, PageSize: page.PageSize})
+	return NewPageResultWithTotal(result.Items, page, result.Total), nil
 }
 
 func (s *QilingService) FollowupTasks(r *http.Request, actor domain.Actor) PageResult[domain.FollowupTask] {
