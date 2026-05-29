@@ -250,6 +250,10 @@ func (r *MySQLRepository) ConfirmUpload(uploadID string, customerName string, ow
 		return domain.ConfirmUploadResult{}, err
 	}
 	if record.Status == domain.UploadConfirmed {
+		result, ok := confirmedUploadResult(record)
+		if ok {
+			return result, nil
+		}
 		return domain.ConfirmUploadResult{}, apperror.New("CONFLICT", "上传记录已确认", map[string]any{"upload_id": uploadID})
 	}
 	if strings.TrimSpace(customerName) == "" {
@@ -309,7 +313,15 @@ func (r *MySQLRepository) ConfirmUpload(uploadID string, customerName string, ow
 		return domain.ConfirmUploadResult{}, err
 	}
 
-	if _, err := tx.Exec(`UPDATE uploads SET status = ? WHERE id = ?`, domain.UploadConfirmed, uploadID); err != nil {
+	if _, err := tx.Exec(`
+		UPDATE uploads
+		SET status = ?,
+		    confirmed_customer_id = ?,
+		    conversation_id = ?,
+		    agent_run_id = ?,
+		    followup_task_id = ?
+		WHERE id = ?
+	`, domain.UploadConfirmed, customerID, conversationID, agentRunID, taskID, uploadID); err != nil {
 		return domain.ConfirmUploadResult{}, err
 	}
 
@@ -553,15 +565,24 @@ func formatTime(value time.Time) string {
 	return value.UTC().Format(time.RFC3339)
 }
 
-func uploadForUpdate(tx *sql.Tx, id string) (domain.UploadRecord, error) {
-	var record domain.UploadRecord
+type mysqlUploadRecord struct {
+	domain.UploadRecord
+	ConfirmedCustomerID sql.NullString
+	ConversationID      sql.NullString
+	AgentRunID          sql.NullString
+	FollowupTaskID      sql.NullString
+}
+
+func uploadForUpdate(tx *sql.Tx, id string) (mysqlUploadRecord, error) {
+	var record mysqlUploadRecord
 	var status string
 	var warningsJSON []byte
 	var createdAt time.Time
 	var rawContent sql.NullString
 
 	err := tx.QueryRow(`
-		SELECT id, status, source_type, parsed_customer_name, parsed_owner_name, warnings, created_at, raw_content
+		SELECT id, status, source_type, parsed_customer_name, parsed_owner_name, warnings, created_at, raw_content,
+		       confirmed_customer_id, conversation_id, agent_run_id, followup_task_id
 		FROM uploads
 		WHERE id = ?
 		FOR UPDATE
@@ -574,12 +595,16 @@ func uploadForUpdate(tx *sql.Tx, id string) (domain.UploadRecord, error) {
 		&warningsJSON,
 		&createdAt,
 		&rawContent,
+		&record.ConfirmedCustomerID,
+		&record.ConversationID,
+		&record.AgentRunID,
+		&record.FollowupTaskID,
 	)
 	if err == sql.ErrNoRows {
-		return domain.UploadRecord{}, apperror.New("NOT_FOUND", "上传记录不存在", map[string]any{"upload_id": id})
+		return mysqlUploadRecord{}, apperror.New("NOT_FOUND", "上传记录不存在", map[string]any{"upload_id": id})
 	}
 	if err != nil {
-		return domain.UploadRecord{}, err
+		return mysqlUploadRecord{}, err
 	}
 
 	record.Status = domain.UploadStatus(status)
@@ -595,6 +620,19 @@ func uploadForUpdate(tx *sql.Tx, id string) (domain.UploadRecord, error) {
 		},
 	}
 	return record, nil
+}
+
+func confirmedUploadResult(record mysqlUploadRecord) (domain.ConfirmUploadResult, bool) {
+	if !record.ConfirmedCustomerID.Valid || !record.ConversationID.Valid || !record.AgentRunID.Valid || !record.FollowupTaskID.Valid {
+		return domain.ConfirmUploadResult{}, false
+	}
+	return domain.ConfirmUploadResult{
+		CustomerID:     record.ConfirmedCustomerID.String,
+		ConversationID: record.ConversationID.String,
+		AgentRunID:     record.AgentRunID.String,
+		FollowupTaskID: record.FollowupTaskID.String,
+		Status:         domain.UploadConfirmed,
+	}, true
 }
 
 func (r *MySQLRepository) followupTask(taskID string) (domain.FollowupTask, error) {
