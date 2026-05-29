@@ -42,6 +42,5 @@ func write(w http.ResponseWriter, status int, response Response) {
 }
 
 func metaFromRequest(r *http.Request) Meta {
-	requestID, _ := r.Context().Value(requestIDKey{}).(string)
-	return Meta{RequestID: requestID, Timestamp: time.Now().UTC().Format(time.RFC3339)}
+	return Meta{RequestID: RequestIDFromRequest(r), Timestamp: time.Now().UTC().Format(time.RFC3339)}
 }

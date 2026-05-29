@@ -1,8 +1,10 @@
 package http
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/config"
 	"github.com/heqiucheng/qiling-agent/backend/internal/http/handler"
@@ -16,6 +18,10 @@ func NewRouter(cfg config.Config) http.Handler {
 }
 
 func NewRouterWithRepository(cfg config.Config, repository store.Repository) http.Handler {
+	return NewRouterWithRepositoryAndLogger(cfg, repository, slog.Default())
+}
+
+func NewRouterWithRepositoryAndLogger(cfg config.Config, repository store.Repository, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	qilingService := service.NewQilingService(repository)
 	dashboardHandler := handler.DashboardHandler{Service: qilingService}
@@ -60,5 +66,5 @@ func NewRouterWithRepository(cfg config.Config, repository store.Repository) htt
 		}
 	})
 
-	return httpx.WithRequestID(httpx.WithActor(mux))
+	return httpx.WithRequestID(httpx.WithActor(httpx.WithAccessLog(logger, 500*time.Millisecond, mux)))
 }

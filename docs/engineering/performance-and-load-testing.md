@@ -27,6 +27,8 @@ Every load test report must record:
 - Test duration, concurrency, scenario, and target base URL.
 - Manual notes for CPU, memory, slow SQL, and queue backlog when those observability hooks exist.
 
+The backend access log must also include `request_id`, HTTP method, path, status, `duration_ms`, slow-request marker, `user_id`, and role, so client-side load-test metrics can be matched with server-side request traces.
+
 ## Executable Tool
 
 Start the backend first:

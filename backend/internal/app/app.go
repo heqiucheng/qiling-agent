@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/config"
@@ -9,13 +10,13 @@ import (
 	"github.com/heqiucheng/qiling-agent/backend/internal/store"
 )
 
-func NewHTTPHandler(cfg config.Config) (http.Handler, error) {
+func NewHTTPHandler(cfg config.Config, logger *slog.Logger) (http.Handler, error) {
 	repository, err := buildRepository(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	return httpx.NewRouterWithRepository(cfg, repository), nil
+	return httpx.NewRouterWithRepositoryAndLogger(cfg, repository, logger), nil
 }
 
 func buildRepository(cfg config.Config) (store.Repository, error) {

@@ -12,7 +12,7 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg := config.Load()
-	handler, err := app.NewHTTPHandler(cfg)
+	handler, err := app.NewHTTPHandler(cfg, logger)
 	if err != nil {
 		logger.Error("initialize backend failed", "error", err, "store_driver", cfg.StoreDriver)
 		os.Exit(1)
