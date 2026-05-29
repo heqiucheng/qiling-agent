@@ -612,6 +612,28 @@ func (r *MySQLRepository) followupTask(taskID string) (domain.FollowupTask, erro
 }
 
 func (r *MySQLRepository) updatePendingTaskStatus(taskID string, status domain.FollowupTaskStatus, feedback *domain.TaskFeedback) error {
+	var feedbackValue any
+	if feedback != nil {
+		feedbackValue = mustJSON(feedback)
+	}
+
+	result, err := r.db.Exec(`
+		UPDATE followup_tasks
+		SET status = ?, feedback = ?
+		WHERE id = ? AND status = ?
+	`, status, feedbackValue, taskID, domain.FollowupPending)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if affected > 0 {
+		return nil
+	}
+
 	task, err := r.followupTask(taskID)
 	if err != nil {
 		return err
@@ -620,23 +642,7 @@ func (r *MySQLRepository) updatePendingTaskStatus(taskID string, status domain.F
 		return apperror.New("TASK_ALREADY_FINALIZED", "任务已经处理，不能重复操作", map[string]any{"task_id": taskID})
 	}
 
-	var feedbackValue any
-	if feedback != nil {
-		feedbackValue = mustJSON(feedback)
-	}
-
-	result, err := r.db.Exec(`UPDATE followup_tasks SET status = ?, feedback = ? WHERE id = ?`, status, feedbackValue, taskID)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return apperror.New("NOT_FOUND", "跟进任务不存在", map[string]any{"task_id": taskID})
-	}
-	return nil
+	return apperror.New("CONFLICT", "任务状态更新冲突，请刷新后重试", map[string]any{"task_id": taskID})
 }
 
 func makeID(prefix string, now time.Time) string {
