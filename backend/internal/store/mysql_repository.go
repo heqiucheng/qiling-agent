@@ -161,24 +161,17 @@ func (r *MySQLRepository) ConversationMessagePage(customerID string, page PageRe
 func (r *MySQLRepository) CreateUpload(sourceType string, content string, ownerID string) (domain.UploadRecord, error) {
 	now := time.Now().UTC()
 	id := makeID("upl", now)
-	customerName := inferCustomerName(content)
+	customerName := inferUploadedCustomerName(content)
+	messages := parseUploadedConversation(id, content, now)
 	record := domain.UploadRecord{
 		ID:         id,
 		Status:     domain.UploadNeedsConfirmation,
 		SourceType: sourceType,
 		ParsedCustomer: domain.ParsedCustomer{
 			Name:      customerName,
-			OwnerName: ownerName(ownerID),
+			OwnerName: parsedOwnerName(ownerID),
 		},
-		Messages: []domain.ConversationMessage{
-			{
-				ID:         "msg_" + id,
-				SenderType: "customer",
-				SenderName: customerName,
-				Content:    strings.TrimSpace(content),
-				SentAt:     formatTime(now),
-			},
-		},
+		Messages:  messages,
 		Warnings:  []string{},
 		CreatedAt: formatTime(now),
 	}
@@ -227,15 +220,7 @@ func (r *MySQLRepository) Upload(id string) (domain.UploadRecord, bool) {
 	record.Status = domain.UploadStatus(status)
 	record.Warnings = decodeStringList(warningsJSON)
 	record.CreatedAt = formatTime(createdAt)
-	record.Messages = []domain.ConversationMessage{
-		{
-			ID:         "msg_" + record.ID,
-			SenderType: "customer",
-			SenderName: record.ParsedCustomer.Name,
-			Content:    rawContent.String,
-			SentAt:     record.CreatedAt,
-		},
-	}
+	record.Messages = parseUploadedConversation(record.ID, rawContent.String, createdAt)
 	return record, true
 }
 
@@ -304,11 +289,17 @@ func (r *MySQLRepository) ConfirmUpload(uploadID string, customerName string, ow
 		return domain.ConfirmUploadResult{}, err
 	}
 
-	if _, err := tx.Exec(`
-		INSERT INTO conversation_messages (id, customer_id, sender_type, sender_name, content, sent_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, "msg_"+uploadID, customerID, "customer", customerName, "Uploaded conversation parsed. Raw content is retained on upload record for later structured parsing.", now); err != nil {
-		return domain.ConfirmUploadResult{}, err
+	for index, message := range record.Messages {
+		sentAt := now.Add(time.Duration(index) * time.Second)
+		if parsed, err := time.Parse(time.RFC3339, message.SentAt); err == nil {
+			sentAt = parsed
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO conversation_messages (id, customer_id, sender_type, sender_name, content, sent_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, message.ID, customerID, message.SenderType, message.SenderName, message.Content, sentAt); err != nil {
+			return domain.ConfirmUploadResult{}, err
+		}
 	}
 
 	if _, err := tx.Exec(`
@@ -1022,15 +1013,7 @@ func uploadForUpdate(tx *sql.Tx, id string) (mysqlUploadRecord, error) {
 	record.Status = domain.UploadStatus(status)
 	record.Warnings = decodeStringList(warningsJSON)
 	record.CreatedAt = formatTime(createdAt)
-	record.Messages = []domain.ConversationMessage{
-		{
-			ID:         "msg_" + record.ID,
-			SenderType: "customer",
-			SenderName: record.ParsedCustomer.Name,
-			Content:    rawContent.String,
-			SentAt:     record.CreatedAt,
-		},
-	}
+	record.Messages = parseUploadedConversation(record.ID, rawContent.String, createdAt)
 	return record, nil
 }
 

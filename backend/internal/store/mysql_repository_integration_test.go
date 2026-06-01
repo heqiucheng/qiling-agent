@@ -84,6 +84,38 @@ func TestMySQLRepositoryConfirmUploadIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestMySQLRepositoryConfirmUploadPersistsParsedConversationMessages(t *testing.T) {
+	repository := integrationRepository(t)
+
+	content := "赵先生 10:02 你们这个方案适合我们20人的销售团队吗？\n销售A 10:04 适合，我先按您团队规模整理方案。\n赵先生 10:08 预算要控制在每月5000以内。"
+	upload, err := repository.CreateUpload("pasted_text", content, "usr_001")
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	if upload.ParsedCustomer.Name != "赵先生" {
+		t.Fatalf("expected parsed customer name, got %s", upload.ParsedCustomer.Name)
+	}
+	if len(upload.Messages) != 3 {
+		t.Fatalf("expected three upload messages, got %d", len(upload.Messages))
+	}
+
+	confirm, err := repository.ConfirmUpload(upload.ID, upload.ParsedCustomer.Name, "usr_001", testConfirmAgentRun())
+	if err != nil {
+		t.Fatalf("confirm upload: %v", err)
+	}
+
+	page := repository.ConversationMessagePage(confirm.CustomerID, PageRequest{Page: 1, PageSize: 10})
+	if page.Total != 3 {
+		t.Fatalf("expected three persisted messages, got %d", page.Total)
+	}
+	if page.Items[0].SenderName != "赵先生" || page.Items[0].Content != "你们这个方案适合我们20人的销售团队吗？" {
+		t.Fatalf("unexpected first message: %#v", page.Items[0])
+	}
+	if page.Items[1].SenderType != "sales" {
+		t.Fatalf("expected second message from sales, got %#v", page.Items[1])
+	}
+}
+
 func TestMySQLRepositoryTaskStatusUpdateAllowsOneConcurrentWinner(t *testing.T) {
 	repository := integrationRepository(t)
 

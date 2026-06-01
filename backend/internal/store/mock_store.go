@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/agent"
 	"github.com/heqiucheng/qiling-agent/backend/internal/apperror"
@@ -218,24 +219,18 @@ func (s *MockStore) CreateUpload(sourceType string, content string, ownerID stri
 
 	id := fmt.Sprintf("upl_%03d", s.nextID)
 	s.nextID++
+	messages := parseUploadedConversation(id, content, time.Date(2026, 5, 28, 10, 30, 0, 0, time.UTC))
+	customerName := inferUploadedCustomerName(content)
 
 	record := domain.UploadRecord{
 		ID:         id,
 		Status:     domain.UploadNeedsConfirmation,
 		SourceType: sourceType,
 		ParsedCustomer: domain.ParsedCustomer{
-			Name:      inferCustomerName(content),
-			OwnerName: ownerName(ownerID),
+			Name:      customerName,
+			OwnerName: parsedOwnerName(ownerID),
 		},
-		Messages: []domain.ConversationMessage{
-			{
-				ID:         "msg_" + id,
-				SenderType: "customer",
-				SenderName: inferCustomerName(content),
-				Content:    strings.TrimSpace(content),
-				SentAt:     "2026-05-28T10:30:00Z",
-			},
-		},
+		Messages:  messages,
 		Warnings:  []string{},
 		CreatedAt: "2026-05-28T10:30:00Z",
 	}
