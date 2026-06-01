@@ -410,6 +410,33 @@ func TestCustomerIntentReportRespectsSalesVisibility(t *testing.T) {
 	}
 }
 
+func TestCustomerIntentReportIncludesAgentRunConversationAndMemoryEvidence(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+	uploadBody := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"owner_id": "usr_001",
+		"content": "客户：李总\n销售：工签今天发不\n客户：在的 明天我确认好给你说"
+	}`, http.StatusOK)
+	uploadID := responseData(t, uploadBody)["upload_id"].(string)
+	postJSON(t, router, "/api/uploads/"+uploadID+"/confirm", `{
+		"customer_name": "李总",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+
+	body := requestJSONWithHeaders(t, router, http.MethodPost, "/api/reports/customer-intent", `{}`, http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	report := responseData(t, body)
+	markdown := report["markdown"].(string)
+
+	for _, expected := range []string{"AgentRun", "最近聊天", "长期记忆"} {
+		if !strings.Contains(markdown, expected) {
+			t.Fatalf("expected report markdown to include %q evidence, got %s", expected, markdown)
+		}
+	}
+}
+
 func TestUploadConversationFlow(t *testing.T) {
 	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
 

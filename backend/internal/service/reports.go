@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
+	"github.com/heqiucheng/qiling-agent/backend/internal/store"
 )
 
 type CustomerIntentReportRequest struct {
@@ -27,7 +28,7 @@ func (s *QilingService) CustomerIntentReport(req CustomerIntentReportRequest, ac
 
 	for _, customer := range customers {
 		task, hasTask := tasksByCustomer[customer.ID]
-		item := reportCustomerItem(customer, task, hasTask)
+		item := reportCustomerItem(customer, task, hasTask, s.reportContextEvidence(customer.ID))
 		switch {
 		case isPendingReportCustomer(customer, item):
 			pendingItems = append(pendingItems, item)
@@ -87,7 +88,40 @@ func latestTaskByCustomer(tasks []domain.FollowupTask) map[string]domain.Followu
 	return result
 }
 
-func reportCustomerItem(customer domain.Customer, task domain.FollowupTask, hasTask bool) domain.ReportCustomerItem {
+func (s *QilingService) reportContextEvidence(customerID string) []string {
+	evidence := make([]string, 0, 8)
+	runs := s.store.AgentRunsByCustomer(customerID, store.PageRequest{Page: 1, PageSize: 2}).Items
+	for _, run := range runs {
+		if strings.TrimSpace(run.Output.Reasoning) != "" {
+			evidence = append(evidence, "AgentRun："+run.Output.Reasoning)
+		} else if strings.TrimSpace(run.InputSummary) != "" {
+			evidence = append(evidence, "AgentRun 输入："+run.InputSummary)
+		}
+		if len(run.RiskFlags) > 0 {
+			evidence = append(evidence, "AgentRun 风险："+strings.Join(run.RiskFlags, "、"))
+		}
+	}
+
+	messages := s.store.ConversationMessagePage(customerID, store.PageRequest{Page: 1, PageSize: 3}).Items
+	for _, message := range messages {
+		if strings.TrimSpace(message.Content) != "" {
+			evidence = append(evidence, "最近聊天："+message.SenderName+"："+message.Content)
+		}
+	}
+
+	facts := s.store.LongTermMemoryFacts(customerID, store.PageRequest{Page: 1, PageSize: 3}).Items
+	for _, fact := range facts {
+		if strings.TrimSpace(fact.Value) != "" {
+			evidence = append(evidence, "长期记忆："+fact.Category+"."+fact.Key+"="+fact.Value)
+		}
+	}
+	if len(facts) == 0 {
+		evidence = append(evidence, "长期记忆：暂无已确认长期事实")
+	}
+	return compactEvidence(evidence)
+}
+
+func reportCustomerItem(customer domain.Customer, task domain.FollowupTask, hasTask bool, contextEvidence []string) domain.ReportCustomerItem {
 	action := "先补充确认客户当前需求，再安排下一步跟进。"
 	script := "我先确认一下，您现在主要想核对哪一项？您把不确定的地方发我，我这边帮您一起看清楚。"
 	reasoning := customer.ProfileSummary
@@ -101,6 +135,7 @@ func reportCustomerItem(customer domain.Customer, task domain.FollowupTask, hasT
 		reasoning = firstNonEmptyReportValue(task.Recommendation.Reasoning, reasoning)
 		evidence = append(evidence, "最新任务建议："+task.Recommendation.RecommendedAction)
 	}
+	evidence = append(evidence, contextEvidence...)
 	return domain.ReportCustomerItem{
 		CustomerID:        customer.ID,
 		CustomerName:      customer.Name,
@@ -140,7 +175,7 @@ func compactEvidence(items []string) []string {
 		if item != "" {
 			result = append(result, item)
 		}
-		if len(result) >= 4 {
+		if len(result) >= 8 {
 			break
 		}
 	}
