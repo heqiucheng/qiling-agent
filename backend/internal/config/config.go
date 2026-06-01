@@ -10,6 +10,8 @@ type Config struct {
 	Env         string
 	DatabaseURL string
 	StoreDriver string
+	LLMProvider string
+	LLMModel    string
 }
 
 func Load() Config {
@@ -33,5 +35,15 @@ func Load() Config {
 		storeDriver = "mock"
 	}
 
-	return Config{Addr: addr, Env: env, DatabaseURL: databaseURL, StoreDriver: storeDriver}
+	llmProvider := strings.TrimSpace(os.Getenv("QILING_LLM_PROVIDER"))
+	if llmProvider == "" {
+		llmProvider = "mock"
+	}
+
+	llmModel := strings.TrimSpace(os.Getenv("QILING_LLM_MODEL"))
+	if llmModel == "" {
+		llmModel = "mock-local-v1"
+	}
+
+	return Config{Addr: addr, Env: env, DatabaseURL: databaseURL, StoreDriver: storeDriver, LLMProvider: llmProvider, LLMModel: llmModel}
 }

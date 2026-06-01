@@ -397,3 +397,19 @@ Rules:
 - Treat audit events as the source stream for later short-term memory, long-term memory, vector indexing, recall evaluation, and review reports.
 
 Detailed design: `docs/architecture/audit-and-events.md`.
+
+## 17. LLM Integration Boundary
+
+LLM calls are isolated behind `internal/integration/llm.Client`. Prompt versions, prompt templates, output schema, and Agent runners live under `internal/agent`.
+
+Current implementation is mock-only and does not call external model APIs. This keeps CI deterministic and avoids paid-provider lock-in before the integration contract is verified.
+
+Rules:
+
+- Handlers must not assemble prompts or call model providers.
+- Repositories must not assemble prompts or call model providers.
+- Service code calls `agent.Runner` and receives structured Agent output.
+- Store code only persists AgentRun records and related business entities.
+- Real provider clients must be added under `internal/integration/llm` with mock tests first.
+
+Detailed design: `docs/architecture/llm-integration-boundary.md`.
