@@ -211,20 +211,55 @@ Suggested source quality scores:
 
 These weights are starting values. They must be measured and tuned with recall evaluation.
 
+## Chinese Glossary
+
+This section gives Chinese names and plain-language analogies for the core terms. The product and engineering documents may still keep the English term because most libraries, papers, APIs, and dashboards use English names.
+
+| English Term | Chinese Name | How To Read It | Plain Explanation | Analogy |
+| --- | --- | --- | --- | --- |
+| `Embedding` | 向量化 / 语义指纹 | em-bed-ding | Turns text into numbers so the system can compare meaning, not just exact words. | Like taking a fingerprint of every sentence. "预算 5000" and "成本不能太高" have different words, but their fingerprints are close. |
+| `Vector DB` | 向量数据库 | vector database | Stores those semantic fingerprints and finds similar ones quickly. | Like a warehouse of fingerprints. You bring one fingerprint in, and it finds the closest old fingerprints. |
+| `Recall` | 召回 | recall | First-round search that pulls back possible useful memories. | Like telling an investigator: "Bring me every clue that might be related." It may bring too much, but it should not miss the important clue. |
+| `Rerank` | 重排 / 二次排序 | re-rank | Sorts recalled candidates again and pushes the best evidence to the top. | Like a chief investigator checking the pile of clues: useful evidence goes on top, weak or noisy evidence goes to the bottom. |
+| `Source Trace` | 来源追踪 | source trace | Records where a memory came from, such as message id, task id, AgentRun id, or audit event id. | Like evidence tags in a case file. If the Agent says something, we can point to the exact source instead of saying "the system felt so." |
+| `Rejected Fact Leak` | 被拒事实泄漏 | rejected fact leak | A rejected/wrong fact accidentally appears again through vector recall. This must be zero. | Like putting a bad clue on a blacklist, but someone secretly slips it back into the case file. This is a serious memory bug. |
+| `Recall Trace` | 召回记录 / 检索轨迹 | recall trace | Records what was searched, what came back, what was selected, and why. | Like a search log: who searched, which clues came back, which clues were used, and which were thrown away. |
+| `Async Indexing` | 异步索引 | async indexing | The user request only creates a job; a background worker later creates embeddings and updates vectors. | Like a kitchen order queue. The waiter takes the order quickly; the kitchen prepares it in the background, so the customer is not stuck at the counter. |
+| `recall@k` | 前 k 召回命中率 | recall at k | Checks whether the expected answer appears in the top k recalled results. | Like asking for the top 10 suspects and checking whether the real suspect is inside. |
+| `selected_relevance_rate` | 入选内容有用率 | selected relevance rate | Human review score for whether selected snippets were useful. | Like checking a basket of selected clues: how many are actually helpful, not just noisy. |
+| `bad_context_rate` | 坏上下文比例 | bad context rate | Percentage of injected snippets that should not have been shown. | Like mixing wrong evidence into the case file. The lower, the better. |
+| `copy_after_recall_rate` | 召回后话术复制率 | copy after recall rate | Measures whether users copy scripts after recall was used. | Like seeing whether the salesperson actually uses the prepared script. If this rises, recall is probably helping. |
+| `mark_wrong_after_recall_rate` | 召回后标错率 | mark wrong after recall rate | Measures whether users mark outputs wrong after recall was used. | Like users saying "this clue misled the Agent." If this rises, retrieval quality is getting worse. |
+| `p95_recall_latency` | P95 召回耗时 | p ninety-five recall latency | 95% of recall requests finish within this time. | Like saying: out of 100 searches, 95 searches must finish fast enough. |
+| `embedding_job_lag` | 向量任务延迟 | embedding job lag | Time from source data changing to the vector index being ready. | Like how long it takes from writing a new clue to putting it into the searchable evidence cabinet. |
+
+## Plain-Language Metric Notes
+
+| Metric | Chinese Note | Why It Matters | Easy Example |
+| --- | --- | --- | --- |
+| `recall@k` | 看“该找的东西有没有被找回来”。 | If the right evidence is not recalled, reranking and LLM generation cannot save it. | Customer says "budget 5000"; top 10 results should include past budget or price-sensitive evidence. |
+| `selected_relevance_rate` | 看“最终塞给 Agent 的内容有没有用”。 | Too much irrelevant context makes the Agent worse, not smarter. | Selected 10 snippets; 8 are useful, relevance rate is 80%. |
+| `bad_context_rate` | 看“有没有把垃圾证据塞进去”。 | Bad context can make the Agent confidently say wrong things. | A snippet about another customer appears in this customer's prompt. |
+| `rejected_fact_leak_rate` | 看“已经拉黑的错误记忆有没有偷偷回来”。 | This must be 0 because user correction must be respected. | User rejected "客户预算高"; vector recall must never show it again. |
+| `copy_after_recall_rate` | 看“召回后生成的话术有没有被用户采用”。 | Copy behavior is a practical business signal. | Recall used a similar case, user copied the script. |
+| `mark_wrong_after_recall_rate` | 看“召回后用户有没有觉得更不准”。 | This is an early warning for retrieval pollution. | Agent used an unrelated case, user marks the script wrong. |
+| `p95_recall_latency` | 看“大多数检索是不是够快”。 | Slow recall makes the product feel stuck. | Target `< 300ms` means most recall calls should finish in less than one blink-level wait. |
+| `embedding_job_lag` | 看“新数据多久能被搜到”。 | If lag is too high, Agent cannot use fresh conversation context. | A new correction was saved; within 5 minutes it should become searchable. |
+
 ## Recall Quality Metrics
 
 Recall quality should be measured before adding more complexity.
 
-| Metric | Meaning | Target For MVP |
-| --- | --- | --- |
-| `recall@k` | Whether expected source appears in top k | Track manually first |
-| `selected_relevance_rate` | Human review score for selected snippets | > 80% useful |
-| `bad_context_rate` | Snippets that should not have been shown | < 5% |
-| `rejected_fact_leak_rate` | Rejected facts appearing in retrieval | 0 |
-| `copy_after_recall_rate` | User copies script after retrieved context was used | Trend upward |
-| `mark_wrong_after_recall_rate` | User marks output wrong after recall | Trend downward |
-| `p95_recall_latency` | Retrieval latency before prompt assembly | < 300 ms local MVP |
-| `embedding_job_lag` | Time from source change to vector availability | < 5 min MVP async |
+| Metric | Chinese Name | Meaning | Target For MVP |
+| --- | --- | --- | --- |
+| `recall@k` | 前 k 召回命中率 | Whether expected source appears in top k | Track manually first |
+| `selected_relevance_rate` | 入选内容有用率 | Human review score for selected snippets | > 80% useful |
+| `bad_context_rate` | 坏上下文比例 | Snippets that should not have been shown | < 5% |
+| `rejected_fact_leak_rate` | 被拒事实泄漏率 | Rejected facts appearing in retrieval | 0 |
+| `copy_after_recall_rate` | 召回后话术复制率 | User copies script after retrieved context was used | Trend upward |
+| `mark_wrong_after_recall_rate` | 召回后标错率 | User marks output wrong after recall | Trend downward |
+| `p95_recall_latency` | P95 召回耗时 | Retrieval latency before prompt assembly | < 300 ms local MVP |
+| `embedding_job_lag` | 向量任务延迟 | Time from source change to vector availability | < 5 min MVP async |
 
 ## Evaluation Dataset
 
