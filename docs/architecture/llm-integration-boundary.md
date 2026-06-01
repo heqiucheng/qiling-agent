@@ -84,6 +84,26 @@ next_followup_time
 
 Validation currently checks required fields before results are recorded as AgentRun output.
 
+## Parsing and Fallback
+
+LLM output must be parsed as JSON before it can become a business recommendation.
+
+Failure cases:
+
+- Empty output.
+- Invalid JSON.
+- Missing required fields.
+- Provider/client error.
+
+Current behavior:
+
+- The runner falls back to deterministic local output.
+- The user workflow continues.
+- Validation or provider errors are preserved in `validation_errors`.
+- The generated AgentRun still records model, prompt version, input summary, output, risk flags, and validation errors.
+
+This is intentional. A model failure should not break the sales workflow, but it must remain visible for debugging, evaluation, and prompt iteration.
+
 ## Configuration
 
 Local defaults:

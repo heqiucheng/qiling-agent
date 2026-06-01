@@ -27,9 +27,13 @@ type Client interface {
 
 type MockClient struct {
 	Response GenerateResponse
+	Err      error
 }
 
 func (c MockClient) Generate(ctx context.Context, request GenerateRequest) (GenerateResponse, error) {
+	if c.Err != nil {
+		return GenerateResponse{}, c.Err
+	}
 	if c.Response.Content != "" {
 		return c.Response, nil
 	}

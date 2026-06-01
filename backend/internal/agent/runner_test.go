@@ -1,10 +1,12 @@
 package agent
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
+	"github.com/heqiucheng/qiling-agent/backend/internal/integration/llm"
 )
 
 func TestMockRunnerGenerateFollowupReturnsValidStructuredOutput(t *testing.T) {
@@ -51,6 +53,63 @@ func TestBuildGenerateRequestIncludesPromptSchemaAndContext(t *testing.T) {
 	}
 	if len(request.Messages) != 2 {
 		t.Fatalf("expected system and user messages, got %d", len(request.Messages))
+	}
+}
+
+func TestLLMRunnerUsesValidModelOutput(t *testing.T) {
+	runner := NewLLMRunner(llm.MockClient{Response: llm.GenerateResponse{
+		Model: "llm-test",
+		Content: `{
+			"customer_stage": "high_intent",
+			"intent_level": "high",
+			"main_concerns": ["delivery"],
+			"recommended_action": "confirm delivery plan",
+			"script": "Let's align the delivery plan.",
+			"reasoning": "Customer is evaluating delivery timing.",
+			"risk_flags": ["do not overpromise delivery"]
+		}`,
+		FinishReason: "stop",
+	}}, "llm-test")
+
+	result := runner.GenerateFollowup(RunInput{RawContent: "delivery timing"})
+
+	if len(result.ValidationErrors) != 0 {
+		t.Fatalf("expected no validation errors, got %#v", result.ValidationErrors)
+	}
+	if result.Model != "llm-test" {
+		t.Fatalf("expected llm-test model, got %s", result.Model)
+	}
+	if result.Recommendation.Script != "Let's align the delivery plan." {
+		t.Fatalf("expected model script, got %s", result.Recommendation.Script)
+	}
+}
+
+func TestLLMRunnerFallsBackOnInvalidJSON(t *testing.T) {
+	runner := NewLLMRunner(llm.MockClient{Response: llm.GenerateResponse{
+		Model:   "llm-test",
+		Content: `{"script":`,
+	}}, "llm-test")
+
+	result := runner.GenerateFollowup(RunInput{RawContent: "price"})
+
+	if len(result.ValidationErrors) == 0 {
+		t.Fatal("expected fallback validation errors")
+	}
+	if result.Recommendation.Script == "" {
+		t.Fatal("expected fallback recommendation")
+	}
+}
+
+func TestLLMRunnerFallsBackOnClientError(t *testing.T) {
+	runner := NewLLMRunner(llm.MockClient{Err: errors.New("timeout")}, "llm-test")
+
+	result := runner.GenerateFollowup(RunInput{RawContent: "price"})
+
+	if len(result.ValidationErrors) == 0 {
+		t.Fatal("expected fallback error")
+	}
+	if result.Recommendation.Script == "" {
+		t.Fatal("expected fallback recommendation")
 	}
 }
 

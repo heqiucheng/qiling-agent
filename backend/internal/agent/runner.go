@@ -53,14 +53,46 @@ func NewLLMRunner(client llm.Client, model string) LLMRunner {
 
 func (r LLMRunner) GenerateFollowup(input RunInput) RunResult {
 	template, _ := Template(PromptFollowupV1)
-	_, _ = r.client.Generate(context.Background(), BuildGenerateRequest(input, template, r.model))
-	return NewMockRunner().GenerateFollowup(input)
+	response, err := r.client.Generate(context.Background(), BuildGenerateRequest(input, template, r.model))
+	fallback := NewMockRunner().GenerateFollowup(input)
+	if err != nil {
+		return fallbackWithErrors(fallback, []string{"llm generate failed: " + err.Error()})
+	}
+	recommendation, validationErrors := ParseRecommendation(response.Content)
+	if len(validationErrors) > 0 {
+		return fallbackWithErrors(fallback, validationErrors)
+	}
+	return RunResult{
+		TaskType:         TaskGenerateFollowupScript,
+		Model:            responseModel(response.Model, r.model),
+		PromptVersion:    PromptFollowupV1,
+		InputSummary:     summarizeInput(input.RawContent, "generate profile and followup script from uploaded conversation"),
+		Recommendation:   recommendation,
+		ValidationErrors: []string{},
+		RiskFlags:        recommendation.RiskFlags,
+	}
 }
 
 func (r LLMRunner) RegenerateFollowup(input RunInput) RunResult {
 	template, _ := Template(PromptRegenerateV1)
-	_, _ = r.client.Generate(context.Background(), BuildGenerateRequest(input, template, r.model))
-	return NewMockRunner().RegenerateFollowup(input)
+	response, err := r.client.Generate(context.Background(), BuildGenerateRequest(input, template, r.model))
+	fallback := NewMockRunner().RegenerateFollowup(input)
+	if err != nil {
+		return fallbackWithErrors(fallback, []string{"llm regenerate failed: " + err.Error()})
+	}
+	recommendation, validationErrors := ParseRecommendation(response.Content)
+	if len(validationErrors) > 0 {
+		return fallbackWithErrors(fallback, validationErrors)
+	}
+	return RunResult{
+		TaskType:         TaskRegenerateFollowup,
+		Model:            responseModel(response.Model, r.model),
+		PromptVersion:    PromptRegenerateV1,
+		InputSummary:     summarizeInput(input.Instruction, "regenerate followup script from user feedback"),
+		Recommendation:   recommendation,
+		ValidationErrors: []string{},
+		RiskFlags:        recommendation.RiskFlags,
+	}
 }
 
 func BuildGenerateRequest(input RunInput, template PromptTemplate, model string) llm.GenerateRequest {
@@ -178,4 +210,11 @@ func nonZeroTime(value time.Time) time.Time {
 		return time.Now().UTC()
 	}
 	return value.UTC()
+}
+
+func responseModel(responseModel string, fallback string) string {
+	if strings.TrimSpace(responseModel) == "" {
+		return fallback
+	}
+	return responseModel
 }

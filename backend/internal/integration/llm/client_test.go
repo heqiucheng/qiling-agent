@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -19,5 +20,14 @@ func TestMockClientGenerateUsesRequestModel(t *testing.T) {
 	}
 	if response.Content != "{}" {
 		t.Fatalf("expected empty JSON object, got %s", response.Content)
+	}
+}
+
+func TestMockClientCanReturnError(t *testing.T) {
+	_, err := MockClient{Err: errors.New("timeout")}.Generate(context.Background(), GenerateRequest{
+		Model: "mock-model",
+	})
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
