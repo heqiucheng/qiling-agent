@@ -4,12 +4,13 @@ import type { Customer } from "../../types/customer";
 import type { DashboardSummary } from "../../types/dashboard";
 import type { FollowupTask } from "../../types/followup";
 import type { ReviewMetric } from "../../types/review";
+import type { Report } from "../../types/report";
 import type { ConfirmUploadResult, UploadConversationResult } from "../../types/upload";
 import type { ConversationMessage } from "../../types/conversation";
 import type { CustomerDetail } from "../../types/customerDetail";
 import type { LongTermMemory, LongTermMemoryFact, MemoryFactCorrectionResult, MemoryFactStatusResult } from "../../types/memory";
 import type { ReviewInsight, ReviewSummary } from "../../types/review";
-import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, LongTermMemoryDto, LongTermMemoryFactDto, MemoryFactCorrectionResultDto, MemoryFactStatusResultDto, MetricDto, PageDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
+import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, LongTermMemoryDto, LongTermMemoryFactDto, MemoryFactCorrectionResultDto, MemoryFactStatusResultDto, MetricDto, PageDto, ReportDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
 import type { ConfirmUploadResultDto, UploadConversationResultDto } from "./dto";
 
 export function mapCustomer(dto: CustomerDto): Customer {
@@ -179,5 +180,40 @@ export function mapReviewSummary(dto: ReviewSummaryDto): ReviewSummary {
     metrics: dto.metrics.map(mapMetric),
     insights: dto.insights.map(mapReviewInsight),
     sampleWarning: dto.sample_warning ?? undefined
+  };
+}
+
+export function mapReport(dto: ReportDto): Report {
+  return {
+    id: dto.id,
+    type: dto.type,
+    title: dto.title,
+    rangeLabel: dto.range_label,
+    summary: dto.summary,
+    metrics: dto.metrics.map(mapMetric),
+    sections: dto.sections.map((section) => ({
+      title: section.title,
+      summary: section.summary,
+      evidence: section.evidence,
+      items: section.items.map((item) => ({
+        customerId: item.customer_id,
+        customerName: item.customer_name,
+        stage: item.stage,
+        intent: item.intent,
+        recommendedAction: item.recommended_action,
+        script: item.script,
+        reasoning: item.reasoning,
+        evidence: item.evidence
+      }))
+    })),
+    actionItems: dto.action_items.map((item) => ({
+      customerId: item.customer_id,
+      customerName: item.customer_name,
+      priority: item.priority,
+      action: item.action,
+      dueHint: item.due_hint
+    })),
+    markdown: dto.markdown,
+    generatedAt: dto.generated_at
   };
 }

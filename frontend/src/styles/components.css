@@ -349,6 +349,116 @@
   text-decoration: underline;
 }
 
+.report-hero {
+  align-items: start;
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+
+.report-hero h2,
+.report-section h2,
+.report-actions h2,
+.report-empty h2 {
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-tight);
+  margin: 0;
+}
+
+.report-hero p,
+.report-section p,
+.report-customer p,
+.report-empty p {
+  color: var(--color-text-secondary);
+  margin: var(--space-2) 0 0;
+}
+
+.report-hero__eyebrow {
+  align-items: center;
+  color: var(--color-ai-accent);
+  display: flex;
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.report-hero > span {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.report-layout {
+  align-items: start;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+}
+
+.report-layout__main,
+.report-section,
+.report-customer-list,
+.report-action-list,
+.report-actions {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.report-customer {
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+}
+
+.report-customer__header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.report-customer__header strong {
+  font-size: var(--font-size-lg);
+}
+
+.report-customer__header span,
+.report-action span {
+  background: var(--color-bg-subtle);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+  padding: var(--space-1) var(--space-2);
+}
+
+.report-evidence {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.report-evidence span {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.report-action {
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+.report-action p {
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.report-action small {
+  color: var(--color-text-tertiary);
+}
+
 @media (max-width: 720px) {
   .memory-manager__header,
   .memory-correction-form {
@@ -357,5 +467,11 @@
 
   .memory-manager__header {
     display: grid;
+  }
+
+  .report-hero,
+  .report-layout {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }

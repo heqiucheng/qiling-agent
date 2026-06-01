@@ -1,0 +1,154 @@
+import { Copy, FileText, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { MetricCard } from "../../components/ui/MetricCard";
+import { generateCustomerIntentReport } from "../../lib/api/reports";
+import { copyText } from "../../lib/clipboard";
+import type { Report } from "../../types/report";
+import { useAuth } from "../auth/use-auth";
+
+export function ReportCenterPage() {
+  const { user } = useAuth();
+  const [report, setReport] = useState<Report | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState("");
+
+  async function generateReport() {
+    setIsLoading(true);
+    setStatus("");
+    try {
+      const result = await generateCustomerIntentReport();
+      setReport(result);
+      setStatus("报告已生成");
+    } catch {
+      setStatus("报告生成失败，请确认后端服务可用");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function copyMarkdown() {
+    if (!report) {
+      return;
+    }
+    const copied = await copyText(report.markdown);
+    setStatus(copied ? "Markdown 已复制" : "当前浏览器不支持自动复制");
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    void generateCustomerIntentReport()
+      .then((result) => {
+        if (active) {
+          setReport(result);
+          setStatus("报告已生成");
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setStatus("报告生成失败，请确认后端服务可用");
+        }
+      })
+
+    return () => {
+      active = false;
+    };
+  }, [user.id, user.role]);
+
+  return (
+    <section className="page">
+      <header className="page__header">
+        <div>
+          <h1 className="page__title">报告中心</h1>
+          <p className="page__subtitle">生成客户意愿、风险、待确认事项和下一步行动清单。</p>
+          {status ? <p className="page__subtitle">{status}</p> : null}
+        </div>
+        <div className="task-card__actions">
+          <Button variant="secondary" onClick={generateReport} disabled={isLoading}>
+            <RefreshCw size={16} aria-hidden="true" />
+            {isLoading ? "生成中" : "重新生成"}
+          </Button>
+          <Button variant="primary" onClick={copyMarkdown} disabled={!report}>
+            <Copy size={16} aria-hidden="true" />
+            复制 Markdown
+          </Button>
+        </div>
+      </header>
+
+      {report ? (
+        <div className="page-grid">
+          <Card className="report-hero">
+            <div>
+              <div className="report-hero__eyebrow">
+                <FileText size={16} aria-hidden="true" />
+                {report.rangeLabel}
+              </div>
+              <h2>{report.title}</h2>
+              <p>{report.summary}</p>
+            </div>
+            <span>{new Date(report.generatedAt).toLocaleString()}</span>
+          </Card>
+
+          <div className="page-grid page-grid--two">
+            {report.metrics.map((metric) => (
+              <MetricCard key={metric.label} {...metric} />
+            ))}
+          </div>
+
+          <div className="report-layout">
+            <div className="report-layout__main">
+              {report.sections.map((section) => (
+                <Card key={section.title} className="report-section">
+                  <div>
+                    <h2>{section.title}</h2>
+                    <p>{section.summary}</p>
+                  </div>
+                  <div className="report-customer-list">
+                    {section.items.map((item) => (
+                      <article key={item.customerId} className="report-customer">
+                        <div className="report-customer__header">
+                          <strong>{item.customerName}</strong>
+                          <span>{item.intent}</span>
+                          <span>{item.stage}</span>
+                        </div>
+                        <p>{item.reasoning}</p>
+                        <div className="task-card__script">{item.script}</div>
+                        <div className="report-evidence">
+                          {item.evidence.map((evidence) => (
+                            <span key={evidence}>{evidence}</span>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <Card className="report-actions">
+              <h2>行动清单</h2>
+              <div className="report-action-list">
+                {report.actionItems.map((item) => (
+                  <article key={`${item.customerId}-${item.priority}`} className="report-action">
+                    <span>{item.priority}</span>
+                    <strong>{item.customerName}</strong>
+                    <p>{item.action}</p>
+                    <small>{item.dueHint}</small>
+                  </article>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        <Card className="report-empty">
+          <h2>暂无报告</h2>
+          <p>点击重新生成后，系统会基于当前可见客户、任务和 Agent 建议生成报告。</p>
+        </Card>
+      )}
+    </section>
+  );
+}

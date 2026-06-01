@@ -315,3 +315,48 @@ type ReviewSummary struct {
 	Insights             []ReviewInsight     `json:"insights"`
 	SampleWarning        *string             `json:"sample_warning"`
 }
+
+type ReportType string
+
+const (
+	ReportCustomerIntent ReportType = "customer_intent"
+)
+
+type Report struct {
+	ID          string             `json:"id"`
+	Type        ReportType         `json:"type"`
+	Title       string             `json:"title"`
+	RangeLabel  string             `json:"range_label"`
+	Summary     string             `json:"summary"`
+	Metrics     []Metric           `json:"metrics"`
+	Sections    []ReportSection    `json:"sections"`
+	ActionItems []ReportActionItem `json:"action_items"`
+	Markdown    string             `json:"markdown"`
+	GeneratedAt string             `json:"generated_at"`
+}
+
+type ReportSection struct {
+	Title    string               `json:"title"`
+	Summary  string               `json:"summary"`
+	Items    []ReportCustomerItem `json:"items"`
+	Evidence []string             `json:"evidence"`
+}
+
+type ReportCustomerItem struct {
+	CustomerID        string   `json:"customer_id"`
+	CustomerName      string   `json:"customer_name"`
+	Stage             string   `json:"stage"`
+	Intent            string   `json:"intent"`
+	RecommendedAction string   `json:"recommended_action"`
+	Script            string   `json:"script"`
+	Reasoning         string   `json:"reasoning"`
+	Evidence          []string `json:"evidence"`
+}
+
+type ReportActionItem struct {
+	CustomerID   string `json:"customer_id"`
+	CustomerName string `json:"customer_name"`
+	Priority     string `json:"priority"`
+	Action       string `json:"action"`
+	DueHint      string `json:"due_hint"`
+}

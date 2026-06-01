@@ -367,6 +367,49 @@ func TestReviewSummaryEndpoint(t *testing.T) {
 	}
 }
 
+func TestCustomerIntentReportEndpoint(t *testing.T) {
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodPost, "/api/reports/customer-intent", `{
+		"range": "last_7_days"
+	}`, http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	data := responseData(t, body)
+
+	if data["type"] != "customer_intent" {
+		t.Fatalf("expected customer_intent report, got %#v", data["type"])
+	}
+	if data["markdown"] == "" {
+		t.Fatal("expected markdown report")
+	}
+	metrics, ok := data["metrics"].([]any)
+	if !ok || len(metrics) == 0 {
+		t.Fatalf("expected report metrics, got %#v", data["metrics"])
+	}
+	sections, ok := data["sections"].([]any)
+	if !ok || len(sections) == 0 {
+		t.Fatalf("expected report sections, got %#v", data["sections"])
+	}
+	actionItems, ok := data["action_items"].([]any)
+	if !ok || len(actionItems) == 0 {
+		t.Fatalf("expected report action items, got %#v", data["action_items"])
+	}
+}
+
+func TestCustomerIntentReportRespectsSalesVisibility(t *testing.T) {
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodPost, "/api/reports/customer-intent", `{}`, http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	data := responseData(t, body)
+	metrics := data["metrics"].([]any)
+	totalMetric := metrics[0].(map[string]any)
+
+	if totalMetric["value"] != float64(2) {
+		t.Fatalf("expected sales report to include two visible customers, got %#v", totalMetric["value"])
+	}
+}
+
 func TestUploadConversationFlow(t *testing.T) {
 	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
 

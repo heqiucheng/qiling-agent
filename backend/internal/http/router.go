@@ -34,6 +34,7 @@ func NewRouterWithRepositoryAgentAndLogger(cfg config.Config, repository store.R
 	followupTasksHandler := handler.FollowupTasksHandler{Service: qilingService}
 	uploadsHandler := handler.UploadsHandler{Service: qilingService}
 	reviewReportsHandler := handler.ReviewReportsHandler{Service: qilingService}
+	reportsHandler := handler.ReportsHandler{Service: qilingService}
 	auditEventsHandler := handler.AuditEventsHandler{Service: qilingService}
 	agentRunsHandler := handler.AgentRunsHandler{Service: qilingService}
 
@@ -57,6 +58,7 @@ func NewRouterWithRepositoryAgentAndLogger(cfg config.Config, repository store.R
 	})
 	mux.HandleFunc("GET /api/followup-tasks", followupTasksHandler.List)
 	mux.HandleFunc("GET /api/review-reports/summary", reviewReportsHandler.Summary)
+	mux.HandleFunc("POST /api/reports/customer-intent", reportsHandler.CustomerIntent)
 	mux.HandleFunc("GET /api/audit-events", auditEventsHandler.List)
 	mux.HandleFunc("GET /api/agent-runs/", agentRunsHandler.Get)
 	mux.HandleFunc("POST /api/uploads/conversations", uploadsHandler.CreateConversation)

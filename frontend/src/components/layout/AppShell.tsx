@@ -1,4 +1,4 @@
-import { BarChart3, DatabaseZap, Home, MessageSquareText, Settings, Users } from "lucide-react";
+import { BarChart3, DatabaseZap, FileText, Home, MessageSquareText, Settings, Users } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { useAuth } from "../../features/auth/use-auth";
@@ -8,6 +8,7 @@ const navItems = [
   { to: "/app/customers", label: "客户", icon: Users },
   { to: "/app/followup-tasks", label: "待确认话术", icon: MessageSquareText },
   { to: "/app/data-ingestion", label: "数据接入", icon: DatabaseZap },
+  { to: "/app/reports", label: "报告中心", icon: FileText },
   { to: "/app/review-center", label: "复盘中心", icon: BarChart3 },
   { to: "/app/settings", label: "设置", icon: Settings }
 ];
@@ -21,7 +22,7 @@ export function AppShell() {
       <aside className="side-nav" aria-label="主导航">
         <div className="side-nav__brand">
           <span className="side-nav__name">企灵 Agent</span>
-          <span className="side-nav__subtitle">私域销售自动跟进与复盘</span>
+          <span className="side-nav__subtitle">私域客户分析、跟进与复盘</span>
         </div>
         <nav className="side-nav__items">
           {navItems.map((item) => {

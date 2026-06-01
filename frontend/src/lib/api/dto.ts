@@ -194,3 +194,42 @@ export interface ReviewSummaryDto {
   insights: ReviewInsightDto[];
   sample_warning: string | null;
 }
+
+export interface ReportCustomerItemDto {
+  customer_id: string;
+  customer_name: string;
+  stage: string;
+  intent: string;
+  recommended_action: string;
+  script: string;
+  reasoning: string;
+  evidence: string[];
+}
+
+export interface ReportSectionDto {
+  title: string;
+  summary: string;
+  items: ReportCustomerItemDto[];
+  evidence: string[];
+}
+
+export interface ReportActionItemDto {
+  customer_id: string;
+  customer_name: string;
+  priority: string;
+  action: string;
+  due_hint: string;
+}
+
+export interface ReportDto {
+  id: string;
+  type: "customer_intent";
+  title: string;
+  range_label: string;
+  summary: string;
+  metrics: MetricDto[];
+  sections: ReportSectionDto[];
+  action_items: ReportActionItemDto[];
+  markdown: string;
+  generated_at: string;
+}
