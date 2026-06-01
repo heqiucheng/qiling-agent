@@ -93,3 +93,11 @@ Run upload-path load tests after:
 ## Quality Gate
 
 `scripts/check.ps1` remains deterministic and does not run load tests by default. Load tests are required before merging performance-sensitive backend, AI, memory, vector, recall, or queue changes.
+
+## Local Baselines
+
+These numbers are local development baselines, not production capacity guarantees. They are useful for regression comparison after backend query, logging, memory, vector, recall, or queue changes.
+
+| Date | Store | Scenario | Duration | Concurrency | Requests | Errors | RPS | P50 | P95 | P99 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-06-01 | MySQL local demo data | read | 10s | 8 | 34,414 | 0 | 3,441.03 | 1.754ms | 5.495ms | 8.54ms |
