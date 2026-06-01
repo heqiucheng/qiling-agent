@@ -9,6 +9,7 @@ Long-term memory stores stable customer facts that can survive beyond the curren
 ```text
 GET /api/customers/{customer_id}/long-term-memory
 POST /api/customers/{customer_id}/long-term-memory/facts/{fact_id}/reject
+POST /api/customers/{customer_id}/long-term-memory/facts/{fact_id}/correct
 ```
 
 The endpoint returns:
@@ -62,6 +63,7 @@ These facts use the AgentRun as their source. That means a future correction can
 - Prefer updating stable fact keys over appending duplicates.
 - Reject bad facts by changing status to `rejected`; do not physically delete them.
 - Preserve the source AgentRun even when a fact is rejected.
+- Correct bad facts by superseding the old fact and writing a human-correction active fact.
 
 ## Relationship To Short-Term Memory
 
@@ -121,3 +123,21 @@ The event records:
 - optional rejection reason.
 
 This keeps memory governance auditable while preventing rejected facts from entering later prompt context.
+
+## Correction Flow
+
+Correction is for cases where the user knows the right fact and wants the Agent to use it later.
+
+Flow:
+
+```text
+old fact -> superseded
+new fact -> active
+new source_type -> human_correction
+new source_id -> old fact id
+audit event -> memory_fact.corrected
+```
+
+If the correction keeps the same `category + key`, the same row is updated in place because the table enforces one slot per stable fact key. If the correction changes the key, the old row becomes `superseded` and the new row becomes `active`.
+
+This keeps prompt context clean while preserving the correction trail.

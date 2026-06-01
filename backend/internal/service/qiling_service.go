@@ -241,6 +241,14 @@ type RejectMemoryFactRequest struct {
 	Reason string `json:"reason"`
 }
 
+type CorrectMemoryFactRequest struct {
+	Category   string  `json:"category"`
+	Key        string  `json:"key"`
+	Value      string  `json:"value"`
+	Confidence float64 `json:"confidence"`
+	Reason     string  `json:"reason"`
+}
+
 func (s *QilingService) UploadConversation(req UploadConversationRequest, actor domain.Actor, requestID string) (domain.UploadConversationResult, error) {
 	if strings.TrimSpace(req.Content) == "" {
 		return domain.UploadConversationResult{}, apperror.New("EMPTY_CONTENT", "聊天记录为空", map[string]any{"field": "content"})
@@ -478,6 +486,62 @@ func (s *QilingService) RejectMemoryFact(customerID string, factID string, req R
 		},
 	}); err != nil {
 		return domain.MemoryFactStatusResult{}, err
+	}
+	return result, nil
+}
+
+func (s *QilingService) CorrectMemoryFact(customerID string, factID string, req CorrectMemoryFactRequest, actor domain.Actor, requestID string) (domain.MemoryFactCorrectionResult, error) {
+	customer, ok := s.store.Customer(customerID)
+	if !ok {
+		return domain.MemoryFactCorrectionResult{}, apperror.New("NOT_FOUND", "customer not found", map[string]any{"customer_id": customerID})
+	}
+	if !canSeeCustomer(customer, actor) {
+		return domain.MemoryFactCorrectionResult{}, apperror.New("FORBIDDEN", "customer is not visible to current actor", map[string]any{"customer_id": customerID})
+	}
+	if strings.TrimSpace(req.Category) == "" || strings.TrimSpace(req.Key) == "" || strings.TrimSpace(req.Value) == "" {
+		return domain.MemoryFactCorrectionResult{}, apperror.New("VALIDATION_ERROR", "category, key, and value are required", map[string]any{"fact_id": factID})
+	}
+	confidence := req.Confidence
+	if confidence <= 0 {
+		confidence = 1
+	}
+	if confidence > 1 {
+		confidence = 1
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	result, err := s.store.CorrectLongTermMemoryFact(customerID, factID, domain.LongTermMemoryFact{
+		CustomerID: customerID,
+		Category:   strings.TrimSpace(req.Category),
+		Key:        normalizeMemoryKey(req.Key),
+		Value:      strings.TrimSpace(req.Value),
+		Confidence: confidence,
+		SourceType: "human_correction",
+		SourceID:   factID,
+		Status:     domain.MemoryFactActive,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+	if err != nil {
+		return domain.MemoryFactCorrectionResult{}, err
+	}
+	if err := s.recordAudit(domain.AuditEvent{
+		Action:      domain.AuditMemoryFactCorrected,
+		Actor:       actor,
+		RequestID:   requestID,
+		EntityType:  "memory_fact",
+		EntityID:    result.NewFact.ID,
+		RelatedType: "memory_fact",
+		RelatedID:   factID,
+		Metadata: map[string]any{
+			"customer_id": customerID,
+			"reason":      strings.TrimSpace(req.Reason),
+			"old_status":  result.OldStatus,
+			"category":    result.NewFact.Category,
+			"key":         result.NewFact.Key,
+		},
+	}); err != nil {
+		return domain.MemoryFactCorrectionResult{}, err
 	}
 	return result, nil
 }

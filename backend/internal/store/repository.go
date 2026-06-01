@@ -89,6 +89,7 @@ type Repository interface {
 	LongTermMemoryFacts(customerID string, page PageRequest) LongTermMemoryFactPage
 	UpsertLongTermMemoryFact(fact domain.LongTermMemoryFact) (domain.LongTermMemoryFact, error)
 	UpdateLongTermMemoryFactStatus(customerID string, factID string, status domain.MemoryFactStatus) (domain.MemoryFactStatusResult, error)
+	CorrectLongTermMemoryFact(customerID string, factID string, corrected domain.LongTermMemoryFact) (domain.MemoryFactCorrectionResult, error)
 	CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error)
 	AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage
 }

@@ -447,6 +447,7 @@ Current endpoint:
 ```text
 GET /api/customers/{id}/long-term-memory
 POST /api/customers/{id}/long-term-memory/facts/{fact_id}/reject
+POST /api/customers/{id}/long-term-memory/facts/{fact_id}/correct
 ```
 
 Current table:
@@ -464,5 +465,6 @@ Rules:
 - Keep permissions identical to customer detail.
 - Do not introduce vector storage at this layer.
 - Rejected facts are excluded from prompt context but remain auditable.
+- Corrected facts use `human_correction` provenance and remain auditable.
 
 Detailed design: `docs/architecture/long-term-memory.md`.

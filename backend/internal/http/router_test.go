@@ -259,6 +259,64 @@ func TestRejectLongTermMemoryFactRemovesItFromActiveMemory(t *testing.T) {
 	}
 }
 
+func TestCorrectLongTermMemoryFactUpdatesActiveMemory(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	uploadBody := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"content": "Customer A 10:20 price and effect need review",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	uploadID := responseData(t, uploadBody)["upload_id"].(string)
+	confirmBody := postJSON(t, router, "/api/uploads/"+uploadID+"/confirm", `{
+		"customer_name": "Customer A",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	customerID := responseData(t, confirmBody)["customer_id"].(string)
+
+	memoryBody := requestJSON(t, router, http.MethodGet, "/api/customers/"+customerID+"/long-term-memory", "", http.StatusOK)
+	facts := responseData(t, memoryBody)["facts"].([]any)
+	if len(facts) == 0 {
+		t.Fatal("expected generated memory facts")
+	}
+	factID := facts[0].(map[string]any)["id"].(string)
+
+	correctBody := requestJSON(t, router, http.MethodPost, "/api/customers/"+customerID+"/long-term-memory/facts/"+factID+"/correct", `{
+		"category": "concern",
+		"key": "delivery",
+		"value": "delivery timeline",
+		"confidence": 1,
+		"reason": "user corrected the customer concern"
+	}`, http.StatusOK)
+	correction := responseData(t, correctBody)
+	if correction["old_status"] != "superseded" {
+		t.Fatalf("expected old fact superseded, got %#v", correction["old_status"])
+	}
+	newFact := correction["new_fact"].(map[string]any)
+	if newFact["source_type"] != "human_correction" {
+		t.Fatalf("expected human correction source, got %#v", newFact["source_type"])
+	}
+
+	afterBody := requestJSON(t, router, http.MethodGet, "/api/customers/"+customerID+"/long-term-memory", "", http.StatusOK)
+	afterFacts := responseData(t, afterBody)["facts"].([]any)
+	found := false
+	for _, item := range afterFacts {
+		fact := item.(map[string]any)
+		if fact["value"] == "delivery timeline" && fact["source_type"] == "human_correction" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected corrected fact in active memory, got %#v", afterFacts)
+	}
+
+	auditBody := requestJSON(t, router, http.MethodGet, "/api/audit-events?action=memory_fact.corrected", "", http.StatusOK)
+	audit := responseData(t, auditBody)
+	if audit["total"] != float64(1) {
+		t.Fatalf("expected one memory correction audit event, got %#v", audit["total"])
+	}
+}
+
 func TestSalesRoleCannotSeeOtherOwnersLongTermMemory(t *testing.T) {
 	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers/cus_003/long-term-memory", "", http.StatusForbidden, map[string]string{
 		"X-Qiling-User-ID": "usr_001",

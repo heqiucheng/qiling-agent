@@ -49,20 +49,45 @@ func (h CustomersHandler) LongTermMemory(w http.ResponseWriter, r *http.Request)
 	httpx.WriteJSON(w, r, http.StatusOK, result)
 }
 
-func (h CustomersHandler) RejectMemoryFact(w http.ResponseWriter, r *http.Request) {
+func (h CustomersHandler) MutateMemoryFact(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/customers/")
 	parts := strings.Split(path, "/")
-	if len(parts) != 5 || parts[1] != "long-term-memory" || parts[2] != "facts" || parts[4] != "reject" {
+	if len(parts) != 5 || parts[1] != "long-term-memory" || parts[2] != "facts" {
 		http.NotFound(w, r)
 		return
 	}
 
+	switch parts[4] {
+	case "reject":
+		h.rejectMemoryFact(w, r, parts[0], parts[3])
+	case "correct":
+		h.correctMemoryFact(w, r, parts[0], parts[3])
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (h CustomersHandler) rejectMemoryFact(w http.ResponseWriter, r *http.Request, customerID string, factID string) {
 	var req service.RejectMemoryFactRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 		WriteServiceError(w, r, err)
 		return
 	}
-	result, err := h.Service.RejectMemoryFact(parts[0], parts[3], req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
+	result, err := h.Service.RejectMemoryFact(customerID, factID, req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
+	if err != nil {
+		WriteServiceError(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, r, http.StatusOK, result)
+}
+
+func (h CustomersHandler) correctMemoryFact(w http.ResponseWriter, r *http.Request, customerID string, factID string) {
+	var req service.CorrectMemoryFactRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteServiceError(w, r, err)
+		return
+	}
+	result, err := h.Service.CorrectMemoryFact(customerID, factID, req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
 	if err != nil {
 		WriteServiceError(w, r, err)
 		return

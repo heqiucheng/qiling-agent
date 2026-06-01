@@ -270,6 +270,46 @@ Response data shape:
 
 Rejected facts are excluded from active long-term memory and future prompt context. The rejection writes a `memory_fact.rejected` audit event.
 
+### POST `/api/customers/{customer_id}/long-term-memory/facts/{fact_id}/correct`
+
+Purpose: correct an incorrect durable fact while preserving the original trace.
+
+Request:
+
+```json
+{
+  "category": "concern",
+  "key": "delivery",
+  "value": "delivery timeline",
+  "confidence": 1,
+  "reason": "user corrected the customer concern"
+}
+```
+
+Response data shape:
+
+```json
+{
+  "old_fact_id": "mem_001",
+  "old_status": "superseded",
+  "new_fact": {
+    "id": "mem_002",
+    "customer_id": "cus_001",
+    "category": "concern",
+    "key": "delivery",
+    "value": "delivery timeline",
+    "confidence": 1,
+    "source_type": "human_correction",
+    "source_id": "mem_001",
+    "status": "active",
+    "created_at": "2026-06-01T10:00:00Z",
+    "updated_at": "2026-06-01T10:00:00Z"
+  }
+}
+```
+
+The correction writes a `memory_fact.corrected` audit event. Future prompt context uses the corrected active fact.
+
 ### GET `/api/audit-events`
 
 Purpose: read the structured business event trail for follow-up review, debugging, future memory generation, and Agent explainability.

@@ -333,3 +333,57 @@ func TestMySQLRepositoryRejectsLongTermMemoryFact(t *testing.T) {
 		t.Fatalf("expected rejected fact to be excluded from active facts, got %d", page.Total)
 	}
 }
+
+func TestMySQLRepositoryCorrectsLongTermMemoryFact(t *testing.T) {
+	repository := integrationRepository(t)
+
+	upload, err := repository.CreateUpload("pasted_text", "Customer A 10:20 price and effect need review", "usr_001")
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	confirm, err := repository.ConfirmUpload(upload.ID, "Customer A", "usr_001", testConfirmAgentRun())
+	if err != nil {
+		t.Fatalf("confirm upload: %v", err)
+	}
+	fact, err := repository.UpsertLongTermMemoryFact(domain.LongTermMemoryFact{
+		CustomerID: confirm.CustomerID,
+		Category:   "concern",
+		Key:        "price",
+		Value:      "price",
+		Confidence: 0.8,
+		SourceType: "agent_run",
+		SourceID:   confirm.AgentRunID,
+		Status:     domain.MemoryFactActive,
+	})
+	if err != nil {
+		t.Fatalf("upsert memory fact: %v", err)
+	}
+
+	result, err := repository.CorrectLongTermMemoryFact(confirm.CustomerID, fact.ID, domain.LongTermMemoryFact{
+		CustomerID: confirm.CustomerID,
+		Category:   "concern",
+		Key:        "delivery",
+		Value:      "delivery timeline",
+		Confidence: 1,
+		SourceType: "human_correction",
+		SourceID:   fact.ID,
+		Status:     domain.MemoryFactActive,
+	})
+	if err != nil {
+		t.Fatalf("correct memory fact: %v", err)
+	}
+	if result.OldStatus != domain.MemoryFactSuperseded {
+		t.Fatalf("expected old fact superseded, got %s", result.OldStatus)
+	}
+	if result.NewFact.Value != "delivery timeline" {
+		t.Fatalf("expected corrected value, got %s", result.NewFact.Value)
+	}
+
+	page := repository.LongTermMemoryFacts(confirm.CustomerID, PageRequest{Page: 1, PageSize: 10})
+	if page.Total != 1 {
+		t.Fatalf("expected one active corrected fact, got %d", page.Total)
+	}
+	if page.Items[0].Key != "delivery" {
+		t.Fatalf("expected active corrected key delivery, got %s", page.Items[0].Key)
+	}
+}

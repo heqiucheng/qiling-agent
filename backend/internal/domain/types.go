@@ -10,6 +10,7 @@ const (
 	AuditFollowupTaskMarkedWrong   AuditAction = "followup_task.marked_wrong"
 	AuditFollowupTaskRegenerated   AuditAction = "followup_task.regenerated"
 	AuditMemoryFactRejected        AuditAction = "memory_fact.rejected"
+	AuditMemoryFactCorrected       AuditAction = "memory_fact.corrected"
 )
 
 type AuditEvent struct {
@@ -287,6 +288,12 @@ type LongTermMemory struct {
 type MemoryFactStatusResult struct {
 	FactID string           `json:"fact_id"`
 	Status MemoryFactStatus `json:"status"`
+}
+
+type MemoryFactCorrectionResult struct {
+	OldFactID string             `json:"old_fact_id"`
+	OldStatus MemoryFactStatus   `json:"old_status"`
+	NewFact   LongTermMemoryFact `json:"new_fact"`
 }
 
 type ReviewInsight struct {

@@ -496,6 +496,53 @@ func (s *MockStore) UpdateLongTermMemoryFactStatus(customerID string, factID str
 	return domain.MemoryFactStatusResult{}, apperror.New("NOT_FOUND", "memory fact not found", map[string]any{"fact_id": factID})
 }
 
+func (s *MockStore) CorrectLongTermMemoryFact(customerID string, factID string, corrected domain.LongTermMemoryFact) (domain.MemoryFactCorrectionResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldKey := ""
+	oldFact := domain.LongTermMemoryFact{}
+	for key, fact := range s.facts {
+		if fact.CustomerID == customerID && fact.ID == factID {
+			oldKey = key
+			oldFact = fact
+			break
+		}
+	}
+	if oldKey == "" {
+		return domain.MemoryFactCorrectionResult{}, apperror.New("NOT_FOUND", "memory fact not found", map[string]any{"fact_id": factID})
+	}
+
+	oldFact.Status = domain.MemoryFactSuperseded
+	oldFact.UpdatedAt = "2026-05-28T10:45:00Z"
+	s.facts[oldKey] = oldFact
+
+	if corrected.ID == "" {
+		corrected.ID = fmt.Sprintf("mem_%03d", s.nextID)
+		s.nextID++
+	}
+	if corrected.CustomerID == "" {
+		corrected.CustomerID = customerID
+	}
+	if corrected.Status == "" {
+		corrected.Status = domain.MemoryFactActive
+	}
+	if corrected.CreatedAt == "" {
+		corrected.CreatedAt = "2026-05-28T10:45:00Z"
+	}
+	if corrected.UpdatedAt == "" {
+		corrected.UpdatedAt = corrected.CreatedAt
+	}
+	key := corrected.CustomerID + "|" + corrected.Category + "|" + corrected.Key
+	s.facts[key] = corrected
+
+	return domain.MemoryFactCorrectionResult{
+		OldFactID: factID,
+		OldStatus: domain.MemoryFactSuperseded,
+		NewFact:   corrected,
+	}, nil
+}
+
 func (s *MockStore) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

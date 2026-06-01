@@ -528,6 +528,94 @@ func (r *MySQLRepository) UpdateLongTermMemoryFactStatus(customerID string, fact
 	return domain.MemoryFactStatusResult{FactID: factID, Status: status}, nil
 }
 
+func (r *MySQLRepository) CorrectLongTermMemoryFact(customerID string, factID string, corrected domain.LongTermMemoryFact) (domain.MemoryFactCorrectionResult, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return domain.MemoryFactCorrectionResult{}, err
+	}
+	defer tx.Rollback()
+
+	oldFact, err := memoryFactForUpdate(tx, customerID, factID)
+	if err != nil {
+		return domain.MemoryFactCorrectionResult{}, err
+	}
+
+	now := time.Now().UTC()
+	if corrected.CustomerID == "" {
+		corrected.CustomerID = customerID
+	}
+	if corrected.ID == "" {
+		corrected.ID = makeID("mem", now)
+	}
+	if corrected.Status == "" {
+		corrected.Status = domain.MemoryFactActive
+	}
+	if corrected.CreatedAt == "" {
+		corrected.CreatedAt = formatTime(now)
+	}
+	corrected.UpdatedAt = formatTime(now)
+
+	sameSlot := oldFact.Category == corrected.Category && oldFact.Key == corrected.Key
+	if sameSlot {
+		_, err = tx.Exec(`
+			UPDATE customer_memory_facts
+			SET fact_value = ?, confidence = ?, source_type = ?, source_id = ?,
+			    status = ?, updated_at = ?
+			WHERE customer_id = ? AND id = ?
+		`, corrected.Value, corrected.Confidence, corrected.SourceType, corrected.SourceID, domain.MemoryFactActive, now, customerID, factID)
+		if err != nil {
+			return domain.MemoryFactCorrectionResult{}, err
+		}
+		corrected.ID = factID
+		corrected.CreatedAt = oldFact.CreatedAt
+	} else {
+		if _, err = tx.Exec(`
+			UPDATE customer_memory_facts
+			SET status = ?, updated_at = ?
+			WHERE customer_id = ? AND id = ?
+		`, domain.MemoryFactSuperseded, now, customerID, factID); err != nil {
+			return domain.MemoryFactCorrectionResult{}, err
+		}
+		if _, err = tx.Exec(`
+			INSERT INTO customer_memory_facts (
+				id, customer_id, category, fact_key, fact_value, confidence,
+				source_type, source_id, status, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+				fact_value = VALUES(fact_value),
+				confidence = VALUES(confidence),
+				source_type = VALUES(source_type),
+				source_id = VALUES(source_id),
+				status = VALUES(status),
+				updated_at = VALUES(updated_at)
+		`, corrected.ID, corrected.CustomerID, corrected.Category, corrected.Key, corrected.Value, corrected.Confidence, corrected.SourceType, corrected.SourceID, corrected.Status, now, now); err != nil {
+			return domain.MemoryFactCorrectionResult{}, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.MemoryFactCorrectionResult{}, err
+	}
+
+	page := r.LongTermMemoryFacts(customerID, PageRequest{Page: 1, PageSize: 100})
+	for _, fact := range page.Items {
+		if fact.Category == corrected.Category && fact.Key == corrected.Key {
+			corrected = fact
+			break
+		}
+	}
+
+	oldStatus := domain.MemoryFactSuperseded
+	if sameSlot {
+		oldStatus = domain.MemoryFactActive
+	}
+	return domain.MemoryFactCorrectionResult{
+		OldFactID: factID,
+		OldStatus: oldStatus,
+		NewFact:   corrected,
+	}, nil
+}
+
 func (r *MySQLRepository) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
 	now := time.Now().UTC()
 	if event.ID == "" {
@@ -821,6 +909,42 @@ func scanLongTermMemoryFacts(rows *sql.Rows) []domain.LongTermMemoryFact {
 		return []domain.LongTermMemoryFact{}
 	}
 	return facts
+}
+
+func memoryFactForUpdate(tx *sql.Tx, customerID string, factID string) (domain.LongTermMemoryFact, error) {
+	var fact domain.LongTermMemoryFact
+	var status string
+	var createdAt time.Time
+	var updatedAt time.Time
+	err := tx.QueryRow(`
+		SELECT id, customer_id, category, fact_key, fact_value, confidence,
+		       source_type, source_id, status, created_at, updated_at
+		FROM customer_memory_facts
+		WHERE customer_id = ? AND id = ?
+		FOR UPDATE
+	`, customerID, factID).Scan(
+		&fact.ID,
+		&fact.CustomerID,
+		&fact.Category,
+		&fact.Key,
+		&fact.Value,
+		&fact.Confidence,
+		&fact.SourceType,
+		&fact.SourceID,
+		&status,
+		&createdAt,
+		&updatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return domain.LongTermMemoryFact{}, apperror.New("NOT_FOUND", "memory fact not found", map[string]any{"fact_id": factID})
+	}
+	if err != nil {
+		return domain.LongTermMemoryFact{}, err
+	}
+	fact.Status = domain.MemoryFactStatus(status)
+	fact.CreatedAt = formatTime(createdAt)
+	fact.UpdatedAt = formatTime(updatedAt)
+	return fact, nil
 }
 
 func decodeStringList(raw []byte) []string {
