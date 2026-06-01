@@ -289,11 +289,13 @@ func (s *QilingService) ConfirmUpload(uploadID string, req ConfirmUploadRequest,
 	if strings.TrimSpace(customerName) == "" {
 		customerName = upload.ParsedCustomer.Name
 	}
+	memoryContext := s.memoryContextForUpload(customerName, upload, actor)
 	agentRun := s.agent.GenerateFollowup(agent.RunInput{
-		CustomerName: customerName,
-		OwnerID:      req.OwnerID,
-		RawContent:   conversationContentSummary(upload.Messages),
-		Now:          time.Now().UTC(),
+		CustomerName:  customerName,
+		OwnerID:       req.OwnerID,
+		RawContent:    conversationContentSummary(upload.Messages),
+		MemoryContext: memoryContext,
+		Now:           time.Now().UTC(),
 	})
 	result, err := s.store.ConfirmUpload(uploadID, customerName, req.OwnerID, store.ConfirmUploadAgentRun{
 		TaskType:         agentRun.TaskType,
@@ -465,6 +467,49 @@ func conversationContentSummary(messages []domain.ConversationMessage) string {
 		if content != "" {
 			parts = append(parts, content)
 		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func (s *QilingService) memoryContextForUpload(customerName string, upload domain.UploadRecord, actor domain.Actor) string {
+	if customer, ok := s.customerByName(customerName, actor); ok {
+		memory, err := s.CustomerShortTermMemory(customer.ID, actor)
+		if err == nil && strings.TrimSpace(memory.PromptContext) != "" {
+			return memory.PromptContext
+		}
+	}
+
+	return buildUploadMemoryContext(customerName, upload)
+}
+
+func (s *QilingService) customerByName(customerName string, actor domain.Actor) (domain.Customer, bool) {
+	customerName = strings.TrimSpace(customerName)
+	if customerName == "" {
+		return domain.Customer{}, false
+	}
+	for _, customer := range visibleCustomers(s.store.Customers(), actor) {
+		if strings.EqualFold(strings.TrimSpace(customer.Name), customerName) {
+			return customer, true
+		}
+	}
+	return domain.Customer{}, false
+}
+
+func buildUploadMemoryContext(customerName string, upload domain.UploadRecord) string {
+	parts := []string{
+		"Customer: " + strings.TrimSpace(customerName),
+		"Source: " + upload.SourceType,
+		"Upload status: " + string(upload.Status),
+	}
+	if upload.ParsedCustomer.OwnerName != "" {
+		parts = append(parts, "Parsed owner: "+upload.ParsedCustomer.OwnerName)
+	}
+	if len(upload.Warnings) > 0 {
+		parts = append(parts, "Upload warnings: "+strings.Join(upload.Warnings, ", "))
+	}
+	if len(upload.Messages) > 0 {
+		items := conversationMemoryItems(upload.Messages)
+		parts = appendMemorySection(parts, "Uploaded conversation", items)
 	}
 	return strings.Join(parts, "\n")
 }

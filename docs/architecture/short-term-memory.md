@@ -1,6 +1,6 @@
 # Short-Term Memory
 
-Status: implemented for local API context assembly
+Status: implemented for local API context assembly and prompt injection
 
 Short-term memory is the bounded, current customer context used before an Agent generates or regenerates a recommendation. It is not a vector database and it is not the final long-term memory system. It is a deterministic context builder that reads recent structured data and turns it into a prompt-ready summary.
 
@@ -71,4 +71,13 @@ Examples of future long-term memory:
 
 ## Next Step
 
-The next backend step is to inject this short-term memory into prompt generation, so AgentRun input summaries and LLM prompts are based on the same auditable context returned by the API.
+Short-term memory is now injected through `agent.RunInput.MemoryContext`.
+
+The Agent runner appends this context to the user prompt under a `Short-term memory` section and records a compact memory-aware `input_summary` in AgentRun. This keeps the generated recommendation tied to the context the Agent saw at execution time.
+
+For upload confirmation:
+
+- If the customer already exists and is visible to the actor, the service uses the customer's short-term memory endpoint logic.
+- If the customer does not exist yet, the service builds a temporary upload memory context from parsed upload metadata and uploaded conversation snippets.
+
+The next backend step is long-term memory design: identify which facts should survive beyond recent context, how they are updated, and how they are later combined with vector recall.

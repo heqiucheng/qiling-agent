@@ -10,12 +10,13 @@ import (
 )
 
 type RunInput struct {
-	CustomerName string
-	OwnerID      string
-	RawContent   string
-	Instruction  string
-	ExistingTask *domain.FollowupTask
-	Now          time.Time
+	CustomerName  string
+	OwnerID       string
+	RawContent    string
+	MemoryContext string
+	Instruction   string
+	ExistingTask  *domain.FollowupTask
+	Now           time.Time
 }
 
 type RunResult struct {
@@ -66,7 +67,7 @@ func (r LLMRunner) GenerateFollowup(input RunInput) RunResult {
 		TaskType:         TaskGenerateFollowupScript,
 		Model:            responseModel(response.Model, r.model),
 		PromptVersion:    PromptFollowupV1,
-		InputSummary:     summarizeInput(input.RawContent, "generate profile and followup script from uploaded conversation"),
+		InputSummary:     summarizeRunInput(input, input.RawContent, "generate profile and followup script from uploaded conversation"),
 		Recommendation:   recommendation,
 		ValidationErrors: []string{},
 		RiskFlags:        recommendation.RiskFlags,
@@ -88,7 +89,7 @@ func (r LLMRunner) RegenerateFollowup(input RunInput) RunResult {
 		TaskType:         TaskRegenerateFollowup,
 		Model:            responseModel(response.Model, r.model),
 		PromptVersion:    PromptRegenerateV1,
-		InputSummary:     summarizeInput(input.Instruction, "regenerate followup script from user feedback"),
+		InputSummary:     summarizeRunInput(input, input.Instruction, "regenerate followup script from user feedback"),
 		Recommendation:   recommendation,
 		ValidationErrors: []string{},
 		RiskFlags:        recommendation.RiskFlags,
@@ -105,9 +106,10 @@ func BuildGenerateRequest(input RunInput, template PromptTemplate, model string)
 			{Role: "user", Content: buildUserPrompt(input, template)},
 		},
 		Metadata: map[string]any{
-			"task_type":     template.TaskType,
-			"customer_name": input.CustomerName,
-			"owner_id":      input.OwnerID,
+			"task_type":          template.TaskType,
+			"customer_name":      input.CustomerName,
+			"owner_id":           input.OwnerID,
+			"has_memory_context": strings.TrimSpace(input.MemoryContext) != "",
 		},
 	}
 }
@@ -129,7 +131,7 @@ func (r MockRunner) GenerateFollowup(input RunInput) RunResult {
 		TaskType:         TaskGenerateFollowupScript,
 		Model:            ModelMockLocalV1,
 		PromptVersion:    PromptFollowupV1,
-		InputSummary:     summarizeInput(input.RawContent, "generate profile and followup script from uploaded conversation"),
+		InputSummary:     summarizeRunInput(input, input.RawContent, "generate profile and followup script from uploaded conversation"),
 		Recommendation:   recommendation,
 		ValidationErrors: ValidateRecommendation(recommendation),
 		RiskFlags:        recommendation.RiskFlags,
@@ -150,7 +152,7 @@ func (r MockRunner) RegenerateFollowup(input RunInput) RunResult {
 		TaskType:         TaskRegenerateFollowup,
 		Model:            ModelMockLocalV1,
 		PromptVersion:    PromptRegenerateV1,
-		InputSummary:     summarizeInput(input.Instruction, "regenerate followup script from user feedback"),
+		InputSummary:     summarizeRunInput(input, input.Instruction, "regenerate followup script from user feedback"),
 		Recommendation:   recommendation,
 		ValidationErrors: ValidateRecommendation(recommendation),
 		RiskFlags:        recommendation.RiskFlags,
@@ -186,10 +188,25 @@ func buildUserPrompt(input RunInput, template PromptTemplate) string {
 	if strings.TrimSpace(input.RawContent) != "" {
 		parts = append(parts, "Conversation:\n"+strings.TrimSpace(input.RawContent))
 	}
+	if strings.TrimSpace(input.MemoryContext) != "" {
+		parts = append(parts, "Short-term memory:\n"+strings.TrimSpace(input.MemoryContext))
+	}
 	if strings.TrimSpace(input.Instruction) != "" {
 		parts = append(parts, "User feedback:\n"+strings.TrimSpace(input.Instruction))
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+func summarizeRunInput(input RunInput, primary string, fallback string) string {
+	primary = strings.TrimSpace(primary)
+	memory := strings.TrimSpace(input.MemoryContext)
+	if memory == "" {
+		return summarizeInput(primary, fallback)
+	}
+	if primary == "" {
+		return summarizeInput("memory context: "+memory, fallback)
+	}
+	return summarizeInput("memory context: "+memory+"\ncurrent input: "+primary, fallback)
 }
 
 func summarizeInput(value string, fallback string) string {
@@ -197,7 +214,7 @@ func summarizeInput(value string, fallback string) string {
 	if value == "" {
 		return fallback
 	}
-	const maxRunes = 120
+	const maxRunes = 240
 	runes := []rune(value)
 	if len(runes) <= maxRunes {
 		return value

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/config"
@@ -392,6 +393,33 @@ func TestAgentRunEndpointReturnsPromptAndValidationTrace(t *testing.T) {
 	}
 	if _, ok := run["output"].(map[string]any); !ok {
 		t.Fatalf("expected structured output, got %#v", run["output"])
+	}
+}
+
+func TestConfirmUploadAgentRunInputSummaryIncludesMemoryContext(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	uploadBody := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"content": "Customer A 10:20 price and effect need review",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	uploadID := responseData(t, uploadBody)["upload_id"].(string)
+
+	confirmBody := postJSON(t, router, "/api/uploads/"+uploadID+"/confirm", `{
+		"customer_name": "Customer A",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	agentRunID := responseData(t, confirmBody)["agent_run_id"].(string)
+
+	runBody := requestJSON(t, router, http.MethodGet, "/api/agent-runs/"+agentRunID, "", http.StatusOK)
+	run := responseData(t, runBody)
+	inputSummary, ok := run["input_summary"].(string)
+	if !ok {
+		t.Fatalf("expected input summary string, got %#v", run["input_summary"])
+	}
+	if !strings.Contains(inputSummary, "memory context:") {
+		t.Fatalf("expected memory context in input summary, got %s", inputSummary)
 	}
 }
 

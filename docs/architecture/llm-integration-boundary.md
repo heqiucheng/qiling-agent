@@ -67,6 +67,26 @@ followup_regenerate_v1
 
 Prompt versions are stable identifiers. Changing prompt behavior should create a new version when it can affect output quality, sales compliance, user trust, or evaluation comparability.
 
+## Prompt Context
+
+Agent calls receive business context through `agent.RunInput`.
+
+Current prompt inputs:
+
+```text
+CustomerName
+OwnerID
+RawContent
+MemoryContext
+Instruction
+ExistingTask
+Now
+```
+
+`MemoryContext` is produced by the service layer and injected into the user prompt as `Short-term memory`. The Agent package owns the final prompt assembly, so handlers and repositories still do not build prompts.
+
+AgentRun `input_summary` includes a compact memory-aware summary. This gives later debugging and evaluation a trace of the context used for generation without storing unbounded full transcripts.
+
 ## Output Schema
 
 The follow-up recommendation output must include:
@@ -128,5 +148,5 @@ When moving from mock to real LLM:
 2. Keep the `llm.Client` interface stable.
 3. Parse model output into `domain.AgentRecommendation`.
 4. Validate schema before creating AgentRun output.
-5. Record provider/model/prompt version in AgentRun.
+5. Record provider/model/prompt version and memory-aware input summary in AgentRun.
 6. Add failure handling and fallback behavior before enabling user-facing traffic.
