@@ -170,3 +170,30 @@ func TestMySQLRepositoryPersistsAuditEvents(t *testing.T) {
 		t.Fatalf("expected metadata has_script true, got %#v", page.Items[0].Metadata["has_script"])
 	}
 }
+
+func TestMySQLRepositoryAgentRunLookup(t *testing.T) {
+	repository := integrationRepository(t)
+
+	upload, err := repository.CreateUpload("pasted_text", "王女士 10:20 价格和效果需要再看看", "usr_001")
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	confirm, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001")
+	if err != nil {
+		t.Fatalf("confirm upload: %v", err)
+	}
+
+	run, ok := repository.AgentRun(confirm.AgentRunID)
+	if !ok {
+		t.Fatalf("expected agent run %s", confirm.AgentRunID)
+	}
+	if run.Model != "mock-local-v1" {
+		t.Fatalf("expected mock model, got %s", run.Model)
+	}
+	if run.PromptVersion != "followup_v1" {
+		t.Fatalf("expected followup_v1, got %s", run.PromptVersion)
+	}
+	if run.Output.Script == "" {
+		t.Fatal("expected structured output script")
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/heqiucheng/qiling-agent/backend/internal/agent"
 	"github.com/heqiucheng/qiling-agent/backend/internal/apperror"
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
 )
@@ -16,6 +17,7 @@ type MockStore struct {
 	customers []domain.Customer
 	tasks     []domain.FollowupTask
 	audit     []domain.AuditEvent
+	runs      map[string]domain.AgentRun
 }
 
 func NewMockStore() *MockStore {
@@ -69,6 +71,7 @@ func NewMockStore() *MockStore {
 		uploads:   map[string]domain.UploadRecord{},
 		customers: customers,
 		audit:     []domain.AuditEvent{},
+		runs:      map[string]domain.AgentRun{},
 		tasks: []domain.FollowupTask{
 			newTask("task_001", customers[0], "price_objection", "2026-05-28T10:00:00Z", domain.AgentRecommendation{
 				CustomerStage:     domain.StagePriceObjection,
@@ -294,6 +297,20 @@ func (s *MockStore) ConfirmUpload(uploadID string, customerName string, ownerID 
 	s.uploads[uploadID] = record
 	s.customers = append(s.customers, customer)
 	s.tasks = append(s.tasks, task)
+	s.runs[agentRunID] = domain.AgentRun{
+		ID:               agentRunID,
+		CustomerID:       customerID,
+		TaskType:         agent.TaskGenerateFollowupScript,
+		Status:           "succeeded",
+		Model:            agent.ModelMockLocalV1,
+		PromptVersion:    agent.PromptFollowupV1,
+		InputSummary:     "上传聊天记录生成客户画像和跟进话术",
+		Output:           task.Recommendation,
+		ValidationErrors: agent.ValidateRecommendation(task.Recommendation),
+		RiskFlags:        task.Recommendation.RiskFlags,
+		CreatedAt:        "2026-05-28T10:31:00Z",
+		CompletedAt:      "2026-05-28T10:31:00Z",
+	}
 
 	return domain.ConfirmUploadResult{
 		CustomerID:     customerID,
@@ -366,12 +383,35 @@ func (s *MockStore) RegenerateTask(taskID string, instruction string) (domain.Re
 		recommendation.Reasoning = recommendation.Reasoning + " 本次换一种话术保留原客户上下文，仅调整表达方式。"
 	}
 	s.tasks[index].Recommendation = recommendation
+	agentRunID := "run_" + taskID
+	s.runs[agentRunID] = domain.AgentRun{
+		ID:               agentRunID,
+		CustomerID:       s.tasks[index].Customer.ID,
+		TaskType:         agent.TaskRegenerateFollowup,
+		Status:           "succeeded",
+		Model:            agent.ModelMockLocalV1,
+		PromptVersion:    agent.PromptRegenerateV1,
+		InputSummary:     "基于用户反馈重新生成跟进话术",
+		Output:           recommendation,
+		ValidationErrors: agent.ValidateRecommendation(recommendation),
+		RiskFlags:        recommendation.RiskFlags,
+		CreatedAt:        "2026-05-28T10:35:00Z",
+		CompletedAt:      "2026-05-28T10:35:00Z",
+	}
 
 	return domain.RegenerateTaskResult{
 		TaskID:         taskID,
-		AgentRunID:     "run_" + taskID,
+		AgentRunID:     agentRunID,
 		Recommendation: recommendation,
 	}, nil
+}
+
+func (s *MockStore) AgentRun(id string) (domain.AgentRun, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	run, ok := s.runs[id]
+	return run, ok
 }
 
 func (s *MockStore) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {

@@ -241,6 +241,14 @@ func (s *QilingService) Upload(uploadID string) (domain.UploadRecord, error) {
 	return record, nil
 }
 
+func (s *QilingService) AgentRun(runID string) (domain.AgentRun, error) {
+	run, ok := s.store.AgentRun(runID)
+	if !ok {
+		return domain.AgentRun{}, apperror.New("NOT_FOUND", "AgentRun 不存在", map[string]any{"agent_run_id": runID})
+	}
+	return run, nil
+}
+
 func (s *QilingService) ConfirmUpload(uploadID string, req ConfirmUploadRequest, actor domain.Actor, requestID string) (domain.ConfirmUploadResult, error) {
 	if req.OwnerID == "" {
 		req.OwnerID = "usr_001"

@@ -775,3 +775,42 @@ INTERNAL_ERROR
 - 当前契约不接收真实生产客户数据。
 - 当前契约允许使用本地 Mock Agent 生成稳定可测的结构化结果。
 - 后续接入 LLM、企业微信、数据库和向量库时，必须分别补充集成契约和本地验证记录。
+## Agent Runs
+
+### GET `/api/agent-runs/{id}`
+
+Purpose: inspect one Agent execution trace, including model, prompt version, input summary, structured output, validation errors, and risk flags.
+
+Response:
+
+```json
+{
+  "data": {
+    "id": "run_001",
+    "customer_id": "cus_001",
+    "task_type": "generate_followup_script",
+    "status": "succeeded",
+    "model": "mock-local-v1",
+    "prompt_version": "followup_v1",
+    "input_summary": "上传聊天记录生成客户画像和跟进话术",
+    "output": {
+      "customer_stage": "price_objection",
+      "intent_level": "high",
+      "main_concerns": ["价格", "效果"],
+      "recommended_action": "解释价值并提供案例",
+      "script": "您好，您刚才提到价格和效果...",
+      "reasoning": "上传内容显示客户关注价格和效果...",
+      "risk_flags": ["避免直接承诺优惠或效果"]
+    },
+    "validation_errors": [],
+    "risk_flags": ["避免直接承诺优惠或效果"],
+    "created_at": "2026-06-01T10:00:00Z",
+    "completed_at": "2026-06-01T10:00:00Z"
+  },
+  "error": null,
+  "meta": {
+    "request_id": "req_123",
+    "timestamp": "2026-06-01T10:00:00Z"
+  }
+}
+```

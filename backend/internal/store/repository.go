@@ -64,6 +64,7 @@ type Repository interface {
 	SkipTask(taskID string, reason string) (domain.TaskStatusResult, error)
 	MarkTaskWrong(taskID string, reason string) (domain.MarkWrongResult, error)
 	RegenerateTask(taskID string, instruction string) (domain.RegenerateTaskResult, error)
+	AgentRun(id string) (domain.AgentRun, bool)
 	CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error)
 	AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage
 }

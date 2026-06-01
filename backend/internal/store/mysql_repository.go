@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/heqiucheng/qiling-agent/backend/internal/agent"
 	"github.com/heqiucheng/qiling-agent/backend/internal/apperror"
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
 )
@@ -378,8 +379,64 @@ func (r *MySQLRepository) RegenerateTask(taskID string, instruction string) (dom
 		return domain.RegenerateTaskResult{}, err
 	}
 
-	agentRunID := "run_" + taskID
+	now := time.Now().UTC()
+	agentRunID := makeID("run", now)
+	validationErrors := agent.ValidateRecommendation(recommendation)
+	if _, err := r.db.Exec(`
+		INSERT INTO agent_runs (
+			id, customer_id, task_type, status, model, prompt_version, input_summary,
+			output, validation_errors, risk_flags, created_at, completed_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, agentRunID, task.Customer.ID, agent.TaskRegenerateFollowup, "succeeded", agent.ModelMockLocalV1, agent.PromptRegenerateV1, summarizeRunInput(instruction, "基于用户反馈重新生成跟进话术"), recommendationJSON, mustJSON(validationErrors), mustJSON(recommendation.RiskFlags), now, now); err != nil {
+		return domain.RegenerateTaskResult{}, err
+	}
+
 	return domain.RegenerateTaskResult{TaskID: taskID, AgentRunID: agentRunID, Recommendation: recommendation}, nil
+}
+
+func (r *MySQLRepository) AgentRun(id string) (domain.AgentRun, bool) {
+	var run domain.AgentRun
+	var outputJSON sql.NullString
+	var validationErrorsJSON []byte
+	var riskFlagsJSON []byte
+	var createdAt time.Time
+	var completedAt sql.NullTime
+	var customerID sql.NullString
+
+	err := r.db.QueryRow(`
+		SELECT id, customer_id, task_type, status, model, prompt_version, input_summary,
+		       output, validation_errors, risk_flags, created_at, completed_at
+		FROM agent_runs
+		WHERE id = ?
+	`, id).Scan(
+		&run.ID,
+		&customerID,
+		&run.TaskType,
+		&run.Status,
+		&run.Model,
+		&run.PromptVersion,
+		&run.InputSummary,
+		&outputJSON,
+		&validationErrorsJSON,
+		&riskFlagsJSON,
+		&createdAt,
+		&completedAt,
+	)
+	if err != nil {
+		return domain.AgentRun{}, false
+	}
+
+	run.CustomerID = customerID.String
+	if outputJSON.Valid {
+		run.Output = decodeRecommendation([]byte(outputJSON.String))
+	}
+	run.ValidationErrors = decodeStringList(validationErrorsJSON)
+	run.RiskFlags = decodeStringList(riskFlagsJSON)
+	run.CreatedAt = formatTime(createdAt)
+	if completedAt.Valid {
+		run.CompletedAt = formatTime(completedAt.Time)
+	}
+	return run, true
 }
 
 func (r *MySQLRepository) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
@@ -748,6 +805,18 @@ func mustJSON(value any) []byte {
 		return []byte("null")
 	}
 	return raw
+}
+
+func summarizeRunInput(value string, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	runes := []rune(value)
+	if len(runes) <= 120 {
+		return value
+	}
+	return string(runes[:120]) + "..."
 }
 
 func customerWhere(filter CustomerFilter) (string, []any) {

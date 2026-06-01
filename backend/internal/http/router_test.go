@@ -333,6 +333,35 @@ func TestRegenerateTaskKeepsTaskPending(t *testing.T) {
 	}
 }
 
+func TestAgentRunEndpointReturnsPromptAndValidationTrace(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	uploadBody := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"content": "王女士 09:20 价格和效果需要再看看",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	uploadID := responseData(t, uploadBody)["upload_id"].(string)
+
+	confirmBody := postJSON(t, router, "/api/uploads/"+uploadID+"/confirm", `{
+		"customer_name": "王女士",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	agentRunID := responseData(t, confirmBody)["agent_run_id"].(string)
+
+	runBody := requestJSON(t, router, http.MethodGet, "/api/agent-runs/"+agentRunID, "", http.StatusOK)
+	run := responseData(t, runBody)
+	if run["model"] != "mock-local-v1" {
+		t.Fatalf("expected mock model, got %#v", run["model"])
+	}
+	if run["prompt_version"] != "followup_v1" {
+		t.Fatalf("expected followup prompt, got %#v", run["prompt_version"])
+	}
+	if _, ok := run["output"].(map[string]any); !ok {
+		t.Fatalf("expected structured output, got %#v", run["output"])
+	}
+}
+
 func getJSON(t *testing.T, path string) httpx.Response {
 	t.Helper()
 

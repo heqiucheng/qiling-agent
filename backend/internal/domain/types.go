@@ -180,6 +180,21 @@ type RegenerateTaskResult struct {
 	Recommendation AgentRecommendation `json:"recommendation"`
 }
 
+type AgentRun struct {
+	ID               string              `json:"id"`
+	CustomerID       string              `json:"customer_id,omitempty"`
+	TaskType         string              `json:"task_type"`
+	Status           string              `json:"status"`
+	Model            string              `json:"model"`
+	PromptVersion    string              `json:"prompt_version"`
+	InputSummary     string              `json:"input_summary"`
+	Output           AgentRecommendation `json:"output"`
+	ValidationErrors []string            `json:"validation_errors"`
+	RiskFlags        []string            `json:"risk_flags"`
+	CreatedAt        string              `json:"created_at"`
+	CompletedAt      string              `json:"completed_at"`
+}
+
 type Metric struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
