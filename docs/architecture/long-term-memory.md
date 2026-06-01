@@ -141,3 +141,9 @@ audit event -> memory_fact.corrected
 If the correction keeps the same `category + key`, the same row is updated in place because the table enforces one slot per stable fact key. If the correction changes the key, the old row becomes `superseded` and the new row becomes `active`.
 
 This keeps prompt context clean while preserving the correction trail.
+
+## Vector Recall Boundary
+
+The vector recall design is documented in `docs/architecture/memory-retrieval.md`.
+
+Long-term memory remains the durable, inspectable, and correctable fact layer. Vector recall may index active facts for fuzzy search later, but rejected facts must never re-enter prompt context through vector search.

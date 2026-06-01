@@ -163,6 +163,7 @@ docs/architecture/backend-architecture.md 后端架构
 docs/architecture/frontend-architecture.md 前端架构
 docs/architecture/short-term-memory.md    短期记忆
 docs/architecture/long-term-memory.md     长期记忆
+docs/architecture/memory-retrieval.md     向量召回与记忆检索
 docs/engineering/performance-and-load-testing.md 性能和压测规则
 ```
 

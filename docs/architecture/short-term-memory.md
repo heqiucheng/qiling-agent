@@ -80,4 +80,4 @@ For upload confirmation:
 - If the customer already exists and is visible to the actor, the service uses the customer's short-term memory endpoint logic.
 - If the customer does not exist yet, the service builds a temporary upload memory context from parsed upload metadata and uploaded conversation snippets.
 
-The next backend step is long-term memory design: identify which facts should survive beyond recent context, how they are updated, and how they are later combined with vector recall.
+The vector recall design is documented in `docs/architecture/memory-retrieval.md`. Short-term memory remains the deterministic current-context layer and should not depend on vector infrastructure.
