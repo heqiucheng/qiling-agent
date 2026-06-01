@@ -58,6 +58,11 @@ type AuditEventPage struct {
 	Total int
 }
 
+type AgentRunPage struct {
+	Items []domain.AgentRun
+	Total int
+}
+
 type Repository interface {
 	Customers() []domain.Customer
 	CustomerPage(filter CustomerFilter, page PageRequest) CustomerPage
@@ -75,6 +80,7 @@ type Repository interface {
 	MarkTaskWrong(taskID string, reason string) (domain.MarkWrongResult, error)
 	RegenerateTask(taskID string, instruction string) (domain.RegenerateTaskResult, error)
 	AgentRun(id string) (domain.AgentRun, bool)
+	AgentRunsByCustomer(customerID string, page PageRequest) AgentRunPage
 	CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error)
 	AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage
 }

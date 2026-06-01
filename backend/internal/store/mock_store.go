@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -410,6 +411,26 @@ func (s *MockStore) AgentRun(id string) (domain.AgentRun, bool) {
 
 	run, ok := s.runs[id]
 	return run, ok
+}
+
+func (s *MockStore) AgentRunsByCustomer(customerID string, page PageRequest) AgentRunPage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	runs := make([]domain.AgentRun, 0)
+	for _, run := range s.runs {
+		if run.CustomerID == customerID {
+			runs = append(runs, run)
+		}
+	}
+	sort.SliceStable(runs, func(i, j int) bool {
+		if runs[i].CreatedAt == runs[j].CreatedAt {
+			return runs[i].ID > runs[j].ID
+		}
+		return runs[i].CreatedAt > runs[j].CreatedAt
+	})
+
+	return AgentRunPage{Items: paginate(runs, page), Total: len(runs)}
 }
 
 func (s *MockStore) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {

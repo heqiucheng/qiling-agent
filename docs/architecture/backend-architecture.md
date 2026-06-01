@@ -266,6 +266,7 @@ POST   /api/uploads/{id}/confirm
 GET    /api/customers
 GET    /api/customers/{id}
 GET    /api/customers/{id}/conversations
+GET    /api/customers/{id}/short-term-memory
 GET    /api/followup-tasks
 POST   /api/followup-tasks/{id}/copy
 POST   /api/followup-tasks/{id}/skip
@@ -413,3 +414,25 @@ Rules:
 - Real provider clients must be added under `internal/integration/llm` with mock tests first.
 
 Detailed design: `docs/architecture/llm-integration-boundary.md`.
+
+## 18. Short-Term Memory
+
+Short-term memory is implemented as a bounded read-side context builder.
+
+Current endpoint:
+
+```text
+GET /api/customers/{id}/short-term-memory
+```
+
+It reads the customer profile, recent conversation messages, recent follow-up tasks, recent AgentRun traces, and related audit events, then returns structured memory items plus a compact `prompt_context`.
+
+Rules:
+
+- It is permission checked with the same customer visibility rules as customer detail.
+- It is not a vector database.
+- It does not persist a new memory table yet.
+- It does not call external LLM providers.
+- It keeps page sizes bounded to protect performance.
+
+Detailed design: `docs/architecture/short-term-memory.md`.

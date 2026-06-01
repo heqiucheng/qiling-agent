@@ -146,6 +146,39 @@ func TestCustomerConversationsEndpoint(t *testing.T) {
 	}
 }
 
+func TestCustomerShortTermMemoryEndpoint(t *testing.T) {
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers/cus_001/short-term-memory", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	data := responseData(t, body)
+
+	if _, ok := data["customer"].(map[string]any); !ok {
+		t.Fatalf("expected customer object, got %#v", data["customer"])
+	}
+	if data["prompt_context"] == "" {
+		t.Fatalf("expected prompt context, got %#v", data["prompt_context"])
+	}
+	highlights, ok := data["conversation_highlights"].([]any)
+	if !ok || len(highlights) == 0 {
+		t.Fatalf("expected conversation highlights, got %#v", data["conversation_highlights"])
+	}
+	tasks, ok := data["recent_tasks"].([]any)
+	if !ok || len(tasks) == 0 {
+		t.Fatalf("expected recent tasks, got %#v", data["recent_tasks"])
+	}
+}
+
+func TestSalesRoleCannotSeeOtherOwnersShortTermMemory(t *testing.T) {
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers/cus_003/short-term-memory", "", http.StatusForbidden, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	if body.Error == nil || body.Error.Code != "FORBIDDEN" {
+		t.Fatalf("expected FORBIDDEN, got %#v", body.Error)
+	}
+}
+
 func TestFollowupTasksEndpointFiltersByStatus(t *testing.T) {
 	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/followup-tasks?status=pending", "", http.StatusOK, map[string]string{
 		"X-Qiling-User-ID": "mgr_001",

@@ -39,11 +39,11 @@ func testConfirmAgentRun() ConfirmUploadAgentRun {
 	recommendation := domain.AgentRecommendation{
 		CustomerStage:     domain.StagePriceObjection,
 		IntentLevel:       domain.IntentHigh,
-		MainConcerns:      []string{"价格", "效果"},
-		RecommendedAction: "解释价值并提供案例",
-		Script:            "您好，您刚才提到价格和效果，我建议先结合您的使用场景看投入产出。",
-		Reasoning:         "上传内容显示客户关注价格和效果，需要先建立价值感再推动下一步。",
-		RiskFlags:         []string{"避免直接承诺优惠或效果"},
+		MainConcerns:      []string{"price", "effect"},
+		RecommendedAction: "explain value and provide a similar case",
+		Script:            "The customer mentioned price and effect, so explain value before pushing the next step.",
+		Reasoning:         "The uploaded content shows price and effect concerns.",
+		RiskFlags:         []string{"avoid direct discount or outcome promises"},
 	}
 	return ConfirmUploadAgentRun{
 		TaskType:         agent.TaskGenerateFollowupScript,
@@ -59,16 +59,16 @@ func testConfirmAgentRun() ConfirmUploadAgentRun {
 func TestMySQLRepositoryConfirmUploadIsIdempotent(t *testing.T) {
 	repository := integrationRepository(t)
 
-	upload, err := repository.CreateUpload("pasted_text", "王女士 10:20 价格和效果需要再看看", "usr_001")
+	upload, err := repository.CreateUpload("pasted_text", "Customer A 10:20 price and effect need review", "usr_001")
 	if err != nil {
 		t.Fatalf("create upload: %v", err)
 	}
 
-	first, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001", testConfirmAgentRun())
+	first, err := repository.ConfirmUpload(upload.ID, "Customer A", "usr_001", testConfirmAgentRun())
 	if err != nil {
 		t.Fatalf("first confirm: %v", err)
 	}
-	second, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001", testConfirmAgentRun())
+	second, err := repository.ConfirmUpload(upload.ID, "Customer A", "usr_001", testConfirmAgentRun())
 	if err != nil {
 		t.Fatalf("second confirm should be idempotent: %v", err)
 	}
@@ -87,11 +87,11 @@ func TestMySQLRepositoryConfirmUploadIsIdempotent(t *testing.T) {
 func TestMySQLRepositoryTaskStatusUpdateAllowsOneConcurrentWinner(t *testing.T) {
 	repository := integrationRepository(t)
 
-	upload, err := repository.CreateUpload("pasted_text", "李先生 10:20 价格和效果需要再看看", "usr_001")
+	upload, err := repository.CreateUpload("pasted_text", "Customer B 10:20 price and effect need review", "usr_001")
 	if err != nil {
 		t.Fatalf("create upload: %v", err)
 	}
-	confirm, err := repository.ConfirmUpload(upload.ID, "李先生", "usr_001", testConfirmAgentRun())
+	confirm, err := repository.ConfirmUpload(upload.ID, "Customer B", "usr_001", testConfirmAgentRun())
 	if err != nil {
 		t.Fatalf("confirm upload: %v", err)
 	}
@@ -196,11 +196,11 @@ func TestMySQLRepositoryPersistsAuditEvents(t *testing.T) {
 func TestMySQLRepositoryAgentRunLookup(t *testing.T) {
 	repository := integrationRepository(t)
 
-	upload, err := repository.CreateUpload("pasted_text", "王女士 10:20 价格和效果需要再看看", "usr_001")
+	upload, err := repository.CreateUpload("pasted_text", "Customer A 10:20 price and effect need review", "usr_001")
 	if err != nil {
 		t.Fatalf("create upload: %v", err)
 	}
-	confirm, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001", testConfirmAgentRun())
+	confirm, err := repository.ConfirmUpload(upload.ID, "Customer A", "usr_001", testConfirmAgentRun())
 	if err != nil {
 		t.Fatalf("confirm upload: %v", err)
 	}
@@ -217,5 +217,29 @@ func TestMySQLRepositoryAgentRunLookup(t *testing.T) {
 	}
 	if run.Output.Script == "" {
 		t.Fatal("expected structured output script")
+	}
+}
+
+func TestMySQLRepositoryAgentRunsByCustomer(t *testing.T) {
+	repository := integrationRepository(t)
+
+	upload, err := repository.CreateUpload("pasted_text", "Customer A 10:20 price and effect need review", "usr_001")
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	confirm, err := repository.ConfirmUpload(upload.ID, "Customer A", "usr_001", testConfirmAgentRun())
+	if err != nil {
+		t.Fatalf("confirm upload: %v", err)
+	}
+
+	page := repository.AgentRunsByCustomer(confirm.CustomerID, PageRequest{Page: 1, PageSize: 5})
+	if page.Total != 1 {
+		t.Fatalf("expected one agent run, got %d", page.Total)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("expected one page item, got %d", len(page.Items))
+	}
+	if page.Items[0].ID != confirm.AgentRunID {
+		t.Fatalf("expected agent run %s, got %s", confirm.AgentRunID, page.Items[0].ID)
 	}
 }

@@ -114,6 +114,32 @@ func (s *QilingService) CustomerConversations(customerID string, r *http.Request
 	return NewPageResultWithTotal(result.Items, page, result.Total), nil
 }
 
+func (s *QilingService) CustomerShortTermMemory(customerID string, actor domain.Actor) (domain.ShortTermMemory, error) {
+	customer, ok := s.store.Customer(customerID)
+	if !ok {
+		return domain.ShortTermMemory{}, apperror.New("NOT_FOUND", "customer not found", map[string]any{"customer_id": customerID})
+	}
+	if !canSeeCustomer(customer, actor) {
+		return domain.ShortTermMemory{}, apperror.New("FORBIDDEN", "customer is not visible to current actor", map[string]any{"customer_id": customerID})
+	}
+
+	messages := s.store.ConversationMessagePage(customerID, store.PageRequest{Page: 1, PageSize: 5}).Items
+	tasks := visibleTasks(s.store.FollowupTasksByCustomer(customerID), actor)
+	runs := s.store.AgentRunsByCustomer(customerID, store.PageRequest{Page: 1, PageSize: 5}).Items
+	events := s.customerAuditEvents(customer, tasks, actor)
+
+	memory := domain.ShortTermMemory{
+		Customer:               customer,
+		ConversationHighlights: conversationMemoryItems(messages),
+		RecentTasks:            taskMemoryItems(tasks, 5),
+		RecentAgentRuns:        agentRunMemoryItems(runs),
+		RecentEvents:           auditEventMemoryItems(events),
+		BuiltAt:                time.Now().UTC().Format(time.RFC3339),
+	}
+	memory.PromptContext = buildPromptContext(memory)
+	return memory, nil
+}
+
 func (s *QilingService) FollowupTasks(r *http.Request, actor domain.Actor) PageResult[domain.FollowupTask] {
 	query := r.URL.Query()
 	page := PageRequestFromQuery(r)
@@ -441,6 +467,162 @@ func conversationContentSummary(messages []domain.ConversationMessage) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func (s *QilingService) customerAuditEvents(customer domain.Customer, tasks []domain.FollowupTask, actor domain.Actor) []domain.AuditEvent {
+	filter := store.AuditEventFilter{EntityType: "customer", EntityID: customer.ID}
+	if actor.Role != "manager" {
+		filter.ActorID = actor.UserID
+	}
+	events := s.store.AuditEventPage(filter, store.PageRequest{Page: 1, PageSize: 5}).Items
+
+	seen := map[string]bool{}
+	for _, event := range events {
+		seen[event.ID] = true
+	}
+	for _, task := range tasks {
+		if len(events) >= 10 {
+			break
+		}
+		filter := store.AuditEventFilter{EntityType: "followup_task", EntityID: task.ID}
+		if actor.Role != "manager" {
+			filter.ActorID = actor.UserID
+		}
+		taskEvents := s.store.AuditEventPage(filter, store.PageRequest{Page: 1, PageSize: 3}).Items
+		for _, event := range taskEvents {
+			if seen[event.ID] {
+				continue
+			}
+			events = append(events, event)
+			seen[event.ID] = true
+			if len(events) >= 10 {
+				break
+			}
+		}
+	}
+	return events
+}
+
+func conversationMemoryItems(messages []domain.ConversationMessage) []domain.MemoryItem {
+	items := make([]domain.MemoryItem, 0, len(messages))
+	for _, message := range messages {
+		content := compactText(message.Content, 120)
+		if content == "" {
+			continue
+		}
+		items = append(items, domain.MemoryItem{
+			Type:      "conversation_message",
+			ID:        message.ID,
+			Summary:   message.SenderName + ": " + content,
+			Evidence:  message.SenderType,
+			CreatedAt: message.SentAt,
+		})
+	}
+	return items
+}
+
+func taskMemoryItems(tasks []domain.FollowupTask, limit int) []domain.MemoryItem {
+	if len(tasks) > limit {
+		tasks = tasks[:limit]
+	}
+	items := make([]domain.MemoryItem, 0, len(tasks))
+	for _, task := range tasks {
+		summary := strings.TrimSpace(task.Recommendation.RecommendedAction)
+		if summary == "" {
+			summary = task.Type
+		}
+		items = append(items, domain.MemoryItem{
+			Type:      "followup_task",
+			ID:        task.ID,
+			Summary:   string(task.Status) + " | " + summary,
+			Evidence:  compactText(task.Recommendation.Reasoning, 160),
+			CreatedAt: task.GeneratedAt,
+		})
+	}
+	return items
+}
+
+func agentRunMemoryItems(runs []domain.AgentRun) []domain.MemoryItem {
+	items := make([]domain.MemoryItem, 0, len(runs))
+	for _, run := range runs {
+		evidence := compactText(run.InputSummary, 160)
+		if len(run.ValidationErrors) > 0 {
+			evidence = compactText(evidence+" | validation: "+strings.Join(run.ValidationErrors, "; "), 220)
+		}
+		items = append(items, domain.MemoryItem{
+			Type:      "agent_run",
+			ID:        run.ID,
+			Summary:   run.TaskType + " | " + run.Status + " | " + run.PromptVersion,
+			Evidence:  evidence,
+			CreatedAt: run.CreatedAt,
+		})
+	}
+	return items
+}
+
+func auditEventMemoryItems(events []domain.AuditEvent) []domain.MemoryItem {
+	items := make([]domain.MemoryItem, 0, len(events))
+	for _, event := range events {
+		evidence := ""
+		if event.RelatedType != "" || event.RelatedID != "" {
+			evidence = event.RelatedType + "/" + event.RelatedID
+		}
+		items = append(items, domain.MemoryItem{
+			Type:      "audit_event",
+			ID:        event.ID,
+			Summary:   string(event.Action) + " on " + event.EntityType + "/" + event.EntityID,
+			Evidence:  evidence,
+			CreatedAt: event.CreatedAt,
+		})
+	}
+	return items
+}
+
+func buildPromptContext(memory domain.ShortTermMemory) string {
+	sections := []string{
+		"Customer: " + memory.Customer.Name,
+		"Stage: " + string(memory.Customer.Stage) + ", intent: " + string(memory.Customer.Intent),
+		"Owner: " + memory.Customer.Owner.Name + " (" + memory.Customer.Owner.ID + ")",
+		"Profile: " + compactText(memory.Customer.ProfileSummary, 240),
+	}
+	if len(memory.Customer.Concerns) > 0 {
+		sections = append(sections, "Concerns: "+strings.Join(memory.Customer.Concerns, ", "))
+	}
+	if len(memory.Customer.RiskFlags) > 0 {
+		sections = append(sections, "Risk flags: "+strings.Join(memory.Customer.RiskFlags, ", "))
+	}
+	sections = appendMemorySection(sections, "Recent conversation", memory.ConversationHighlights)
+	sections = appendMemorySection(sections, "Recent tasks", memory.RecentTasks)
+	sections = appendMemorySection(sections, "Recent agent runs", memory.RecentAgentRuns)
+	sections = appendMemorySection(sections, "Recent events", memory.RecentEvents)
+	return strings.Join(sections, "\n")
+}
+
+func appendMemorySection(sections []string, title string, items []domain.MemoryItem) []string {
+	if len(items) == 0 {
+		return sections
+	}
+	sections = append(sections, title+":")
+	for _, item := range items {
+		line := "- " + item.Summary
+		if item.Evidence != "" {
+			line += " (" + item.Evidence + ")"
+		}
+		sections = append(sections, line)
+	}
+	return sections
+}
+
+func compactText(value string, maxRunes int) string {
+	value = strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	if value == "" {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	return string(runes[:maxRunes]) + "..."
 }
 
 func countCustomersByIntent(customers []domain.Customer, intent domain.IntentLevel) int {

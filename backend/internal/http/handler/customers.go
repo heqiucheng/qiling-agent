@@ -26,6 +26,16 @@ func (h CustomersHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, r, http.StatusOK, detail)
 }
 
+func (h CustomersHandler) ShortTermMemory(w http.ResponseWriter, r *http.Request) {
+	customerID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/customers/"), "/short-term-memory")
+	result, err := h.Service.CustomerShortTermMemory(customerID, httpx.ActorFromRequest(r))
+	if err != nil {
+		WriteServiceError(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, r, http.StatusOK, result)
+}
+
 func (h CustomersHandler) Conversations(w http.ResponseWriter, r *http.Request) {
 	customerID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/customers/"), "/conversations")
 	result, err := h.Service.CustomerConversations(customerID, r, httpx.ActorFromRequest(r))

@@ -236,6 +236,24 @@ type AgentRunSummary struct {
 	CompletedAt   string   `json:"completed_at"`
 }
 
+type MemoryItem struct {
+	Type      string `json:"type"`
+	ID        string `json:"id"`
+	Summary   string `json:"summary"`
+	Evidence  string `json:"evidence,omitempty"`
+	CreatedAt string `json:"created_at,omitempty"`
+}
+
+type ShortTermMemory struct {
+	Customer               Customer     `json:"customer"`
+	ConversationHighlights []MemoryItem `json:"conversation_highlights"`
+	RecentTasks            []MemoryItem `json:"recent_tasks"`
+	RecentAgentRuns        []MemoryItem `json:"recent_agent_runs"`
+	RecentEvents           []MemoryItem `json:"recent_events"`
+	PromptContext          string       `json:"prompt_context"`
+	BuiltAt                string       `json:"built_at"`
+}
+
 type ReviewInsight struct {
 	Title      string `json:"title"`
 	Evidence   string `json:"evidence"`

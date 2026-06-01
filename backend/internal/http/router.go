@@ -40,6 +40,10 @@ func NewRouterWithRepositoryAndLogger(cfg config.Config, repository store.Reposi
 			customersHandler.Conversations(w, r)
 			return
 		}
+		if strings.HasSuffix(r.URL.Path, "/short-term-memory") {
+			customersHandler.ShortTermMemory(w, r)
+			return
+		}
 		customersHandler.Detail(w, r)
 	})
 	mux.HandleFunc("GET /api/followup-tasks", followupTasksHandler.List)

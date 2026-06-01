@@ -408,48 +408,37 @@ func (r *MySQLRepository) RegenerateTask(taskID string, instruction string) (dom
 }
 
 func (r *MySQLRepository) AgentRun(id string) (domain.AgentRun, bool) {
-	var run domain.AgentRun
-	var outputJSON sql.NullString
-	var validationErrorsJSON []byte
-	var riskFlagsJSON []byte
-	var createdAt time.Time
-	var completedAt sql.NullTime
-	var customerID sql.NullString
-
-	err := r.db.QueryRow(`
+	row := r.db.QueryRow(`
 		SELECT id, customer_id, task_type, status, model, prompt_version, input_summary,
 		       output, validation_errors, risk_flags, created_at, completed_at
 		FROM agent_runs
 		WHERE id = ?
-	`, id).Scan(
-		&run.ID,
-		&customerID,
-		&run.TaskType,
-		&run.Status,
-		&run.Model,
-		&run.PromptVersion,
-		&run.InputSummary,
-		&outputJSON,
-		&validationErrorsJSON,
-		&riskFlagsJSON,
-		&createdAt,
-		&completedAt,
-	)
+	`, id)
+
+	run, err := scanAgentRun(row)
 	if err != nil {
 		return domain.AgentRun{}, false
 	}
-
-	run.CustomerID = customerID.String
-	if outputJSON.Valid {
-		run.Output = decodeRecommendation([]byte(outputJSON.String))
-	}
-	run.ValidationErrors = decodeStringList(validationErrorsJSON)
-	run.RiskFlags = decodeStringList(riskFlagsJSON)
-	run.CreatedAt = formatTime(createdAt)
-	if completedAt.Valid {
-		run.CompletedAt = formatTime(completedAt.Time)
-	}
 	return run, true
+}
+
+func (r *MySQLRepository) AgentRunsByCustomer(customerID string, page PageRequest) AgentRunPage {
+	total := countRows(r.db, "SELECT COUNT(*) FROM agent_runs WHERE customer_id = ?", []any{customerID})
+
+	rows, err := r.db.Query(`
+		SELECT id, customer_id, task_type, status, model, prompt_version, input_summary,
+		       output, validation_errors, risk_flags, created_at, completed_at
+		FROM agent_runs
+		WHERE customer_id = ?
+		ORDER BY created_at DESC, id DESC
+		LIMIT ? OFFSET ?
+	`, customerID, page.PageSize, pageOffset(page))
+	if err != nil {
+		return AgentRunPage{Items: []domain.AgentRun{}, Total: 0}
+	}
+	defer rows.Close()
+
+	return AgentRunPage{Items: scanAgentRuns(rows), Total: total}
 }
 
 func (r *MySQLRepository) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
@@ -658,6 +647,60 @@ func scanConversationMessages(rows *sql.Rows) []domain.ConversationMessage {
 		return []domain.ConversationMessage{}
 	}
 	return messages
+}
+
+func scanAgentRuns(rows *sql.Rows) []domain.AgentRun {
+	runs := make([]domain.AgentRun, 0)
+	for rows.Next() {
+		run, err := scanAgentRun(rows)
+		if err != nil {
+			return []domain.AgentRun{}
+		}
+		runs = append(runs, run)
+	}
+	if err := rows.Err(); err != nil {
+		return []domain.AgentRun{}
+	}
+	return runs
+}
+
+func scanAgentRun(scanner customerScanner) (domain.AgentRun, error) {
+	var run domain.AgentRun
+	var customerID sql.NullString
+	var outputJSON sql.NullString
+	var validationErrorsJSON []byte
+	var riskFlagsJSON []byte
+	var createdAt time.Time
+	var completedAt sql.NullTime
+
+	if err := scanner.Scan(
+		&run.ID,
+		&customerID,
+		&run.TaskType,
+		&run.Status,
+		&run.Model,
+		&run.PromptVersion,
+		&run.InputSummary,
+		&outputJSON,
+		&validationErrorsJSON,
+		&riskFlagsJSON,
+		&createdAt,
+		&completedAt,
+	); err != nil {
+		return domain.AgentRun{}, err
+	}
+
+	run.CustomerID = customerID.String
+	if outputJSON.Valid {
+		run.Output = decodeRecommendation([]byte(outputJSON.String))
+	}
+	run.ValidationErrors = decodeStringList(validationErrorsJSON)
+	run.RiskFlags = decodeStringList(riskFlagsJSON)
+	run.CreatedAt = formatTime(createdAt)
+	if completedAt.Valid {
+		run.CompletedAt = formatTime(completedAt.Time)
+	}
+	return run, nil
 }
 
 func decodeStringList(raw []byte) []string {
