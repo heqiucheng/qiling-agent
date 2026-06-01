@@ -441,6 +441,74 @@ func (r *MySQLRepository) AgentRunsByCustomer(customerID string, page PageReques
 	return AgentRunPage{Items: scanAgentRuns(rows), Total: total}
 }
 
+func (r *MySQLRepository) LongTermMemoryFacts(customerID string, page PageRequest) LongTermMemoryFactPage {
+	total := countRows(r.db, "SELECT COUNT(*) FROM customer_memory_facts WHERE customer_id = ? AND status = ?", []any{customerID, domain.MemoryFactActive})
+
+	rows, err := r.db.Query(`
+		SELECT id, customer_id, category, fact_key, fact_value, confidence,
+		       source_type, source_id, status, created_at, updated_at
+		FROM customer_memory_facts
+		WHERE customer_id = ? AND status = ?
+		ORDER BY updated_at DESC, id DESC
+		LIMIT ? OFFSET ?
+	`, customerID, domain.MemoryFactActive, page.PageSize, pageOffset(page))
+	if err != nil {
+		return LongTermMemoryFactPage{Items: []domain.LongTermMemoryFact{}, Total: 0}
+	}
+	defer rows.Close()
+
+	return LongTermMemoryFactPage{Items: scanLongTermMemoryFacts(rows), Total: total}
+}
+
+func (r *MySQLRepository) UpsertLongTermMemoryFact(fact domain.LongTermMemoryFact) (domain.LongTermMemoryFact, error) {
+	now := time.Now().UTC()
+	if fact.ID == "" {
+		fact.ID = makeID("mem", now)
+	}
+	if fact.Status == "" {
+		fact.Status = domain.MemoryFactActive
+	}
+	createdAt := now
+	if fact.CreatedAt != "" {
+		if parsed, err := time.Parse(time.RFC3339, fact.CreatedAt); err == nil {
+			createdAt = parsed
+		}
+	}
+	updatedAt := now
+	if fact.UpdatedAt != "" {
+		if parsed, err := time.Parse(time.RFC3339, fact.UpdatedAt); err == nil {
+			updatedAt = parsed
+		}
+	}
+
+	_, err := r.db.Exec(`
+		INSERT INTO customer_memory_facts (
+			id, customer_id, category, fact_key, fact_value, confidence,
+			source_type, source_id, status, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+			fact_value = VALUES(fact_value),
+			confidence = VALUES(confidence),
+			source_type = VALUES(source_type),
+			source_id = VALUES(source_id),
+			status = VALUES(status),
+			updated_at = VALUES(updated_at)
+	`, fact.ID, fact.CustomerID, fact.Category, fact.Key, fact.Value, fact.Confidence, fact.SourceType, fact.SourceID, fact.Status, createdAt, updatedAt)
+	if err != nil {
+		return domain.LongTermMemoryFact{}, err
+	}
+
+	page := r.LongTermMemoryFacts(fact.CustomerID, PageRequest{Page: 1, PageSize: 100})
+	for _, saved := range page.Items {
+		if saved.Category == fact.Category && saved.Key == fact.Key {
+			return saved, nil
+		}
+	}
+	fact.CreatedAt = formatTime(createdAt)
+	fact.UpdatedAt = formatTime(updatedAt)
+	return fact, nil
+}
+
 func (r *MySQLRepository) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
 	now := time.Now().UTC()
 	if event.ID == "" {
@@ -701,6 +769,39 @@ func scanAgentRun(scanner customerScanner) (domain.AgentRun, error) {
 		run.CompletedAt = formatTime(completedAt.Time)
 	}
 	return run, nil
+}
+
+func scanLongTermMemoryFacts(rows *sql.Rows) []domain.LongTermMemoryFact {
+	facts := make([]domain.LongTermMemoryFact, 0)
+	for rows.Next() {
+		var fact domain.LongTermMemoryFact
+		var status string
+		var createdAt time.Time
+		var updatedAt time.Time
+		if err := rows.Scan(
+			&fact.ID,
+			&fact.CustomerID,
+			&fact.Category,
+			&fact.Key,
+			&fact.Value,
+			&fact.Confidence,
+			&fact.SourceType,
+			&fact.SourceID,
+			&status,
+			&createdAt,
+			&updatedAt,
+		); err != nil {
+			return []domain.LongTermMemoryFact{}
+		}
+		fact.Status = domain.MemoryFactStatus(status)
+		fact.CreatedAt = formatTime(createdAt)
+		fact.UpdatedAt = formatTime(updatedAt)
+		facts = append(facts, fact)
+	}
+	if err := rows.Err(); err != nil {
+		return []domain.LongTermMemoryFact{}
+	}
+	return facts
 }
 
 func decodeStringList(raw []byte) []string {

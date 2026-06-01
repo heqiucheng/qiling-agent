@@ -254,6 +254,35 @@ type ShortTermMemory struct {
 	BuiltAt                string       `json:"built_at"`
 }
 
+type MemoryFactStatus string
+
+const (
+	MemoryFactActive     MemoryFactStatus = "active"
+	MemoryFactSuperseded MemoryFactStatus = "superseded"
+	MemoryFactRejected   MemoryFactStatus = "rejected"
+)
+
+type LongTermMemoryFact struct {
+	ID         string           `json:"id"`
+	CustomerID string           `json:"customer_id"`
+	Category   string           `json:"category"`
+	Key        string           `json:"key"`
+	Value      string           `json:"value"`
+	Confidence float64          `json:"confidence"`
+	SourceType string           `json:"source_type"`
+	SourceID   string           `json:"source_id"`
+	Status     MemoryFactStatus `json:"status"`
+	CreatedAt  string           `json:"created_at"`
+	UpdatedAt  string           `json:"updated_at"`
+}
+
+type LongTermMemory struct {
+	Customer      Customer             `json:"customer"`
+	Facts         []LongTermMemoryFact `json:"facts"`
+	PromptContext string               `json:"prompt_context"`
+	BuiltAt       string               `json:"built_at"`
+}
+
 type ReviewInsight struct {
 	Title      string `json:"title"`
 	Evidence   string `json:"evidence"`

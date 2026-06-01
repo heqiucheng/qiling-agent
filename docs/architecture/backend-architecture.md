@@ -267,6 +267,7 @@ GET    /api/customers
 GET    /api/customers/{id}
 GET    /api/customers/{id}/conversations
 GET    /api/customers/{id}/short-term-memory
+GET    /api/customers/{id}/long-term-memory
 GET    /api/followup-tasks
 POST   /api/followup-tasks/{id}/copy
 POST   /api/followup-tasks/{id}/skip
@@ -436,3 +437,30 @@ Rules:
 - It keeps page sizes bounded to protect performance.
 
 Detailed design: `docs/architecture/short-term-memory.md`.
+
+## 19. Long-Term Memory
+
+Long-term memory is implemented as a durable customer fact store.
+
+Current endpoint:
+
+```text
+GET /api/customers/{id}/long-term-memory
+```
+
+Current table:
+
+```text
+customer_memory_facts
+```
+
+Rules:
+
+- Store stable facts, not full chat transcripts.
+- Every fact must keep source provenance.
+- Use `customer_id + category + fact_key` as the deduplication boundary.
+- Keep fact status explicit: `active`, `superseded`, or `rejected`.
+- Keep permissions identical to customer detail.
+- Do not introduce vector storage at this layer.
+
+Detailed design: `docs/architecture/long-term-memory.md`.

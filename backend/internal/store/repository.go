@@ -63,6 +63,11 @@ type AgentRunPage struct {
 	Total int
 }
 
+type LongTermMemoryFactPage struct {
+	Items []domain.LongTermMemoryFact
+	Total int
+}
+
 type Repository interface {
 	Customers() []domain.Customer
 	CustomerPage(filter CustomerFilter, page PageRequest) CustomerPage
@@ -81,6 +86,8 @@ type Repository interface {
 	RegenerateTask(taskID string, instruction string) (domain.RegenerateTaskResult, error)
 	AgentRun(id string) (domain.AgentRun, bool)
 	AgentRunsByCustomer(customerID string, page PageRequest) AgentRunPage
+	LongTermMemoryFacts(customerID string, page PageRequest) LongTermMemoryFactPage
+	UpsertLongTermMemoryFact(fact domain.LongTermMemoryFact) (domain.LongTermMemoryFact, error)
 	CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error)
 	AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage
 }

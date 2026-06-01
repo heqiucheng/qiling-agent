@@ -36,6 +36,16 @@ func (h CustomersHandler) ShortTermMemory(w http.ResponseWriter, r *http.Request
 	httpx.WriteJSON(w, r, http.StatusOK, result)
 }
 
+func (h CustomersHandler) LongTermMemory(w http.ResponseWriter, r *http.Request) {
+	customerID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/customers/"), "/long-term-memory")
+	result, err := h.Service.CustomerLongTermMemory(customerID, httpx.ActorFromRequest(r))
+	if err != nil {
+		WriteServiceError(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, r, http.StatusOK, result)
+}
+
 func (h CustomersHandler) Conversations(w http.ResponseWriter, r *http.Request) {
 	customerID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/customers/"), "/conversations")
 	result, err := h.Service.CustomerConversations(customerID, r, httpx.ActorFromRequest(r))

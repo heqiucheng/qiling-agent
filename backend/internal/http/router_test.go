@@ -180,6 +180,46 @@ func TestSalesRoleCannotSeeOtherOwnersShortTermMemory(t *testing.T) {
 	}
 }
 
+func TestCustomerLongTermMemoryEndpointAfterUploadConfirm(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	uploadBody := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"content": "Customer A 10:20 price and effect need review",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	uploadID := responseData(t, uploadBody)["upload_id"].(string)
+
+	confirmBody := postJSON(t, router, "/api/uploads/"+uploadID+"/confirm", `{
+		"customer_name": "Customer A",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	customerID := responseData(t, confirmBody)["customer_id"].(string)
+
+	body := requestJSONWithHeaders(t, router, http.MethodGet, "/api/customers/"+customerID+"/long-term-memory", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	data := responseData(t, body)
+	facts, ok := data["facts"].([]any)
+	if !ok || len(facts) == 0 {
+		t.Fatalf("expected long-term memory facts, got %#v", data["facts"])
+	}
+	if data["prompt_context"] == "" {
+		t.Fatalf("expected prompt context, got %#v", data["prompt_context"])
+	}
+}
+
+func TestSalesRoleCannotSeeOtherOwnersLongTermMemory(t *testing.T) {
+	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers/cus_003/long-term-memory", "", http.StatusForbidden, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	if body.Error == nil || body.Error.Code != "FORBIDDEN" {
+		t.Fatalf("expected FORBIDDEN, got %#v", body.Error)
+	}
+}
+
 func TestFollowupTasksEndpointFiltersByStatus(t *testing.T) {
 	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/followup-tasks?status=pending", "", http.StatusOK, map[string]string{
 		"X-Qiling-User-ID": "mgr_001",

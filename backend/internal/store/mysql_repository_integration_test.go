@@ -243,3 +243,54 @@ func TestMySQLRepositoryAgentRunsByCustomer(t *testing.T) {
 		t.Fatalf("expected agent run %s, got %s", confirm.AgentRunID, page.Items[0].ID)
 	}
 }
+
+func TestMySQLRepositoryUpsertsLongTermMemoryFacts(t *testing.T) {
+	repository := integrationRepository(t)
+
+	upload, err := repository.CreateUpload("pasted_text", "Customer A 10:20 price and effect need review", "usr_001")
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	confirm, err := repository.ConfirmUpload(upload.ID, "Customer A", "usr_001", testConfirmAgentRun())
+	if err != nil {
+		t.Fatalf("confirm upload: %v", err)
+	}
+
+	first, err := repository.UpsertLongTermMemoryFact(domain.LongTermMemoryFact{
+		CustomerID: confirm.CustomerID,
+		Category:   "profile",
+		Key:        "intent_level",
+		Value:      "high",
+		Confidence: 0.8,
+		SourceType: "agent_run",
+		SourceID:   confirm.AgentRunID,
+		Status:     domain.MemoryFactActive,
+	})
+	if err != nil {
+		t.Fatalf("upsert first memory fact: %v", err)
+	}
+	second, err := repository.UpsertLongTermMemoryFact(domain.LongTermMemoryFact{
+		CustomerID: confirm.CustomerID,
+		Category:   "profile",
+		Key:        "intent_level",
+		Value:      "medium",
+		Confidence: 0.6,
+		SourceType: "agent_run",
+		SourceID:   confirm.AgentRunID,
+		Status:     domain.MemoryFactActive,
+	})
+	if err != nil {
+		t.Fatalf("upsert second memory fact: %v", err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("expected upsert to preserve fact id %s, got %s", first.ID, second.ID)
+	}
+
+	page := repository.LongTermMemoryFacts(confirm.CustomerID, PageRequest{Page: 1, PageSize: 10})
+	if page.Total != 1 {
+		t.Fatalf("expected one active fact, got %d", page.Total)
+	}
+	if page.Items[0].Value != "medium" {
+		t.Fatalf("expected updated value medium, got %s", page.Items[0].Value)
+	}
+}

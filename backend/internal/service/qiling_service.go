@@ -140,6 +140,25 @@ func (s *QilingService) CustomerShortTermMemory(customerID string, actor domain.
 	return memory, nil
 }
 
+func (s *QilingService) CustomerLongTermMemory(customerID string, actor domain.Actor) (domain.LongTermMemory, error) {
+	customer, ok := s.store.Customer(customerID)
+	if !ok {
+		return domain.LongTermMemory{}, apperror.New("NOT_FOUND", "customer not found", map[string]any{"customer_id": customerID})
+	}
+	if !canSeeCustomer(customer, actor) {
+		return domain.LongTermMemory{}, apperror.New("FORBIDDEN", "customer is not visible to current actor", map[string]any{"customer_id": customerID})
+	}
+
+	facts := s.store.LongTermMemoryFacts(customerID, store.PageRequest{Page: 1, PageSize: 50}).Items
+	memory := domain.LongTermMemory{
+		Customer: customer,
+		Facts:    facts,
+		BuiltAt:  time.Now().UTC().Format(time.RFC3339),
+	}
+	memory.PromptContext = buildLongTermPromptContext(memory)
+	return memory, nil
+}
+
 func (s *QilingService) FollowupTasks(r *http.Request, actor domain.Actor) PageResult[domain.FollowupTask] {
 	query := r.URL.Query()
 	page := PageRequestFromQuery(r)
@@ -309,6 +328,9 @@ func (s *QilingService) ConfirmUpload(uploadID string, req ConfirmUploadRequest,
 	if err != nil {
 		return domain.ConfirmUploadResult{}, err
 	}
+	if err := s.persistRecommendationMemory(result.CustomerID, result.AgentRunID, agentRun.Recommendation); err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
 	if err := s.recordAudit(domain.AuditEvent{
 		Action:      domain.AuditUploadConfirmed,
 		Actor:       effectiveActor(actor, req.OwnerID),
@@ -469,6 +491,65 @@ func conversationContentSummary(messages []domain.ConversationMessage) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func (s *QilingService) persistRecommendationMemory(customerID string, agentRunID string, recommendation domain.AgentRecommendation) error {
+	facts := recommendationMemoryFacts(customerID, agentRunID, recommendation)
+	for _, fact := range facts {
+		if _, err := s.store.UpsertLongTermMemoryFact(fact); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func recommendationMemoryFacts(customerID string, agentRunID string, recommendation domain.AgentRecommendation) []domain.LongTermMemoryFact {
+	now := time.Now().UTC().Format(time.RFC3339)
+	facts := make([]domain.LongTermMemoryFact, 0)
+	appendFact := func(category string, key string, value string, confidence float64) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		facts = append(facts, domain.LongTermMemoryFact{
+			ID:         "",
+			CustomerID: customerID,
+			Category:   category,
+			Key:        key,
+			Value:      value,
+			Confidence: confidence,
+			SourceType: "agent_run",
+			SourceID:   agentRunID,
+			Status:     domain.MemoryFactActive,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		})
+	}
+
+	appendFact("profile", "customer_stage", string(recommendation.CustomerStage), 0.82)
+	appendFact("profile", "intent_level", string(recommendation.IntentLevel), 0.82)
+	appendFact("sales", "recommended_action", recommendation.RecommendedAction, 0.72)
+	for _, concern := range recommendation.MainConcerns {
+		appendFact("concern", normalizeMemoryKey(concern), concern, 0.78)
+	}
+	for _, risk := range recommendation.RiskFlags {
+		appendFact("risk", normalizeMemoryKey(risk), risk, 0.68)
+	}
+	return facts
+}
+
+func normalizeMemoryKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return "unknown"
+	}
+	replacer := strings.NewReplacer(" ", "_", "\t", "_", "\n", "_", "/", "_", "\\", "_", "|", "_")
+	value = replacer.Replace(value)
+	runes := []rune(value)
+	if len(runes) > 80 {
+		return string(runes[:80])
+	}
+	return value
 }
 
 func (s *QilingService) memoryContextForUpload(customerName string, upload domain.UploadRecord, actor domain.Actor) string {
@@ -641,6 +722,24 @@ func buildPromptContext(memory domain.ShortTermMemory) string {
 	sections = appendMemorySection(sections, "Recent agent runs", memory.RecentAgentRuns)
 	sections = appendMemorySection(sections, "Recent events", memory.RecentEvents)
 	return strings.Join(sections, "\n")
+}
+
+func buildLongTermPromptContext(memory domain.LongTermMemory) string {
+	sections := []string{
+		"Long-term memory for customer: " + memory.Customer.Name,
+	}
+	if len(memory.Facts) == 0 {
+		sections = append(sections, "No active long-term facts yet.")
+		return strings.Join(sections, "\n")
+	}
+	for _, fact := range memory.Facts {
+		sections = append(sections, "- "+fact.Category+"."+fact.Key+": "+fact.Value+" (confidence "+formatConfidence(fact.Confidence)+", source "+fact.SourceType+"/"+fact.SourceID+")")
+	}
+	return strings.Join(sections, "\n")
+}
+
+func formatConfidence(value float64) string {
+	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.3f", value), "0"), ".")
 }
 
 func appendMemorySection(sections []string, title string, items []domain.MemoryItem) []string {

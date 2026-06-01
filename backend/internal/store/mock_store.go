@@ -19,6 +19,7 @@ type MockStore struct {
 	tasks     []domain.FollowupTask
 	audit     []domain.AuditEvent
 	runs      map[string]domain.AgentRun
+	facts     map[string]domain.LongTermMemoryFact
 }
 
 func NewMockStore() *MockStore {
@@ -73,6 +74,7 @@ func NewMockStore() *MockStore {
 		customers: customers,
 		audit:     []domain.AuditEvent{},
 		runs:      map[string]domain.AgentRun{},
+		facts:     map[string]domain.LongTermMemoryFact{},
 		tasks: []domain.FollowupTask{
 			newTask("task_001", customers[0], "price_objection", "2026-05-28T10:00:00Z", domain.AgentRecommendation{
 				CustomerStage:     domain.StagePriceObjection,
@@ -431,6 +433,52 @@ func (s *MockStore) AgentRunsByCustomer(customerID string, page PageRequest) Age
 	})
 
 	return AgentRunPage{Items: paginate(runs, page), Total: len(runs)}
+}
+
+func (s *MockStore) LongTermMemoryFacts(customerID string, page PageRequest) LongTermMemoryFactPage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	facts := make([]domain.LongTermMemoryFact, 0)
+	for _, fact := range s.facts {
+		if fact.CustomerID == customerID && fact.Status == domain.MemoryFactActive {
+			facts = append(facts, fact)
+		}
+	}
+	sort.SliceStable(facts, func(i, j int) bool {
+		if facts[i].UpdatedAt == facts[j].UpdatedAt {
+			return facts[i].ID > facts[j].ID
+		}
+		return facts[i].UpdatedAt > facts[j].UpdatedAt
+	})
+
+	return LongTermMemoryFactPage{Items: paginate(facts, page), Total: len(facts)}
+}
+
+func (s *MockStore) UpsertLongTermMemoryFact(fact domain.LongTermMemoryFact) (domain.LongTermMemoryFact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := fact.CustomerID + "|" + fact.Category + "|" + fact.Key
+	if existing, ok := s.facts[key]; ok {
+		fact.ID = existing.ID
+		fact.CreatedAt = existing.CreatedAt
+	}
+	if fact.ID == "" {
+		fact.ID = fmt.Sprintf("mem_%03d", s.nextID)
+		s.nextID++
+	}
+	if fact.Status == "" {
+		fact.Status = domain.MemoryFactActive
+	}
+	if fact.CreatedAt == "" {
+		fact.CreatedAt = "2026-05-28T10:35:00Z"
+	}
+	if fact.UpdatedAt == "" {
+		fact.UpdatedAt = fact.CreatedAt
+	}
+	s.facts[key] = fact
+	return fact, nil
 }
 
 func (s *MockStore) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
