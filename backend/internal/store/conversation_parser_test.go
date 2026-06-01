@@ -31,3 +31,27 @@ func TestInferUploadedCustomerNameUsesFirstCustomerSender(t *testing.T) {
 		t.Fatalf("expected first customer sender, got %s", name)
 	}
 }
+
+func TestInferUploadedCustomerNameExtractsNameAfterGenericCustomerLabel(t *testing.T) {
+	content := "客户：李总\n销售：工签今天发不\n客户：在的 明天我确认好给你说"
+
+	name := inferUploadedCustomerName(content)
+
+	if name != "李总" {
+		t.Fatalf("expected 李总, got %s", name)
+	}
+}
+
+func TestParseUploadedConversationKeepsGenericCustomerLabelAsSenderType(t *testing.T) {
+	messages := parseUploadedConversation("upl_test", "客户：李总\n销售：工签今天发不", time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC))
+
+	if len(messages) != 2 {
+		t.Fatalf("expected two messages, got %d", len(messages))
+	}
+	if messages[0].SenderType != "customer" {
+		t.Fatalf("expected customer sender type, got %s", messages[0].SenderType)
+	}
+	if messages[0].SenderName != "客户" {
+		t.Fatalf("expected generic sender label to remain 客户, got %s", messages[0].SenderName)
+	}
+}

@@ -79,7 +79,7 @@ func parseConversationLine(line string) (string, string) {
 
 func inferSenderType(senderName string) string {
 	senderName = strings.TrimSpace(senderName)
-	if strings.Contains(senderName, "销售") || strings.EqualFold(senderName, "sales") || strings.HasPrefix(strings.ToLower(senderName), "agent") {
+	if isSalesSenderLabel(senderName) {
 		return "sales"
 	}
 	return "customer"
@@ -87,6 +87,12 @@ func inferSenderType(senderName string) string {
 
 func inferUploadedCustomerName(content string) string {
 	for _, message := range parseUploadedConversation("infer", content, time.Now().UTC()) {
+		if isGenericCustomerSenderLabel(message.SenderName) {
+			if name := extractCustomerNameFromMessage(message.Content); name != "" {
+				return name
+			}
+			continue
+		}
 		if message.SenderType == "customer" && strings.TrimSpace(message.SenderName) != "" {
 			return message.SenderName
 		}
@@ -101,6 +107,47 @@ func inferUploadedCustomerName(content string) string {
 		}
 	}
 	return "新客户"
+}
+
+func isSalesSenderLabel(value string) bool {
+	value = strings.TrimSpace(value)
+	lower := strings.ToLower(value)
+	return strings.Contains(value, "销售") ||
+		strings.Contains(value, "客服") ||
+		strings.EqualFold(value, "sales") ||
+		strings.HasPrefix(lower, "agent") ||
+		value == "我" ||
+		value == "本人"
+}
+
+func isGenericCustomerSenderLabel(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "客户", "顾客", "对方", "用户", "买家", "咨询人", "联系人":
+		return true
+	default:
+		return false
+	}
+}
+
+func extractCustomerNameFromMessage(value string) string {
+	value = cleanSenderName(value)
+	if value == "" || isGenericCustomerSenderLabel(value) || isSalesSenderLabel(value) {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) > 8 {
+		return ""
+	}
+	nameSuffixes := []string{"总", "先生", "女士", "小姐", "老师", "经理", "老板", "哥", "姐"}
+	for _, suffix := range nameSuffixes {
+		if strings.HasSuffix(value, suffix) {
+			return value
+		}
+	}
+	if len(runes) >= 2 && len(runes) <= 4 {
+		return value
+	}
+	return ""
 }
 
 func cleanSenderName(value string) string {

@@ -480,6 +480,21 @@ func TestUploadConversationFlow(t *testing.T) {
 	}
 }
 
+func TestUploadConversationParsesCustomerNameFromGenericCustomerLabel(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+	body := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"owner_id": "usr_001",
+		"content": "客户：李总\n销售：工签今天发不\n客户：在的 明天我确认好给你说"
+	}`, http.StatusOK)
+	data := responseData(t, body)
+	parsedCustomer := data["parsed_customer"].(map[string]any)
+
+	if parsedCustomer["name"] != "李总" {
+		t.Fatalf("expected parsed customer 李总, got %#v", parsedCustomer["name"])
+	}
+}
+
 func TestUploadConversationRejectsEmptyContent(t *testing.T) {
 	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
 	body := postJSON(t, router, "/api/uploads/conversations", `{
