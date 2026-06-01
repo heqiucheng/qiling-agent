@@ -31,6 +31,34 @@ func TestMockRunnerGenerateFollowupReturnsValidStructuredOutput(t *testing.T) {
 	}
 }
 
+func TestMockRunnerHandlesPendingLifeOrWorkConfirmationChat(t *testing.T) {
+	result := NewMockRunner().GenerateFollowup(RunInput{
+		CustomerName: "李总",
+		RawContent: strings.Join([]string{
+			"客户：李总",
+			"销售：工签今天发不",
+			"客户：这个不是",
+			"销售：李总在吗",
+			"客户：在的 明天我确认好给你说",
+			"销售：好",
+		}, "\n"),
+		Now: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+	})
+
+	if result.Recommendation.IntentLevel != domain.IntentMedium {
+		t.Fatalf("expected medium intent for pending confirmation, got %s", result.Recommendation.IntentLevel)
+	}
+	if result.Recommendation.CustomerStage != domain.StageNeedsDiscovery {
+		t.Fatalf("expected needs_discovery stage, got %s", result.Recommendation.CustomerStage)
+	}
+	if strings.Contains(strings.Join(result.Recommendation.MainConcerns, ","), "price") {
+		t.Fatalf("did not expect price concern, got %#v", result.Recommendation.MainConcerns)
+	}
+	if !strings.Contains(result.Recommendation.Script, "确认") {
+		t.Fatalf("expected confirmation-oriented script, got %s", result.Recommendation.Script)
+	}
+}
+
 func TestBuildGenerateRequestIncludesPromptSchemaAndContext(t *testing.T) {
 	template, ok := Template(PromptFollowupV1)
 	if !ok {

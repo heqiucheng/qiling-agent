@@ -29,6 +29,25 @@ func TestParseRecommendationRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestParseRecommendationNormalizesReasoningArray(t *testing.T) {
+	recommendation, errors := ParseRecommendation(`{
+		"customer_stage": "needs_discovery",
+		"intent_level": "medium",
+		"main_concerns": ["pending_confirmation"],
+		"recommended_action": "send a light reminder",
+		"script": "Please confirm when convenient.",
+		"reasoning": ["The chat is short.", "The customer promised to confirm later."],
+		"risk_flags": ["avoid repeated urging"]
+	}`)
+
+	if len(errors) != 0 {
+		t.Fatalf("expected no errors, got %#v", errors)
+	}
+	if recommendation.Reasoning != "The chat is short. The customer promised to confirm later." {
+		t.Fatalf("expected normalized reasoning, got %q", recommendation.Reasoning)
+	}
+}
+
 func TestParseRecommendationRejectsMissingRequiredFields(t *testing.T) {
 	_, errors := ParseRecommendation(`{"script": "hello"}`)
 

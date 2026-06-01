@@ -120,16 +120,7 @@ func BuildGenerateRequest(input RunInput, template PromptTemplate, model string)
 
 func (r MockRunner) GenerateFollowup(input RunInput) RunResult {
 	now := nonZeroTime(input.Now)
-	recommendation := domain.AgentRecommendation{
-		CustomerStage:     domain.StagePriceObjection,
-		IntentLevel:       domain.IntentHigh,
-		MainConcerns:      []string{"price", "outcome"},
-		RecommendedAction: "explain value and provide a similar case",
-		Script:            "I can first explain the expected value with a similar case, then discuss whether the plan fits your scenario.",
-		Reasoning:         "The uploaded conversation shows price and outcome concerns. Establish value before pushing for commitment.",
-		RiskFlags:         []string{"avoid direct discount or outcome promises"},
-		NextFollowupTime:  now.Add(6 * time.Hour).UTC().Format(time.RFC3339),
-	}
+	recommendation := fallbackRecommendation(input, now)
 
 	return RunResult{
 		TaskType:         TaskGenerateFollowupScript,
@@ -140,6 +131,69 @@ func (r MockRunner) GenerateFollowup(input RunInput) RunResult {
 		ValidationErrors: ValidateRecommendation(recommendation),
 		RiskFlags:        recommendation.RiskFlags,
 	}
+}
+
+func fallbackRecommendation(input RunInput, now time.Time) domain.AgentRecommendation {
+	content := strings.ToLower(input.RawContent + "\n" + input.ShortTermMemoryContext + "\n" + input.MemoryContext)
+	if isPendingConfirmationChat(content) {
+		name := strings.TrimSpace(input.CustomerName)
+		if name == "" {
+			name = "您好"
+		}
+		return domain.AgentRecommendation{
+			CustomerStage:     domain.StageNeedsDiscovery,
+			IntentLevel:       domain.IntentMedium,
+			MainConcerns:      []string{"pending_confirmation", "limited_context"},
+			RecommendedAction: "send a light reminder at the promised time and avoid over-interpreting the short reply",
+			Script:            name + "，您昨天说今天确认好给我说，我这边先不打扰您太多。您确认后直接发我就行，如果还有哪里不确定，我也可以帮您一起核对。",
+			Reasoning:         "The conversation is a low-information coordination chat. The other party did not reject the request and only promised to confirm later, so the safest next step is a light reminder rather than a sales push.",
+			RiskFlags:         []string{"do not treat a pending confirmation as high purchase intent", "avoid repeated urging before the promised reply time"},
+			NextFollowupTime:  now.Add(24 * time.Hour).UTC().Format(time.RFC3339),
+		}
+	}
+	if isPriceOrOutcomeChat(content) {
+		return domain.AgentRecommendation{
+			CustomerStage:     domain.StagePriceObjection,
+			IntentLevel:       domain.IntentHigh,
+			MainConcerns:      []string{"price", "outcome"},
+			RecommendedAction: "explain value and provide a similar case",
+			Script:            "I can first explain the expected value with a similar case, then discuss whether the plan fits your scenario.",
+			Reasoning:         "The uploaded conversation shows price or outcome concerns. Establish value before pushing for commitment.",
+			RiskFlags:         []string{"avoid direct discount or outcome promises"},
+			NextFollowupTime:  now.Add(6 * time.Hour).UTC().Format(time.RFC3339),
+		}
+	}
+	return domain.AgentRecommendation{
+		CustomerStage:     domain.StageNeedsDiscovery,
+		IntentLevel:       domain.IntentMedium,
+		MainConcerns:      []string{"needs_context", "next_step_unclear"},
+		RecommendedAction: "clarify the current need and confirm the next concrete step",
+		Script:            "我先确认一下，您现在主要是想核对哪一项？您把不确定的地方发我，我这边帮您一起看清楚后再往下推进。",
+		Reasoning:         "The uploaded conversation does not provide enough evidence for a strong sales or risk judgment. A clarification-first follow-up is safer and more useful.",
+		RiskFlags:         []string{"avoid assuming price objection or high intent without evidence"},
+		NextFollowupTime:  now.Add(6 * time.Hour).UTC().Format(time.RFC3339),
+	}
+}
+
+func isPriceOrOutcomeChat(content string) bool {
+	signals := []string{"price", "outcome", "budget", "discount", "价格", "预算", "优惠", "效果", "结果"}
+	for _, signal := range signals {
+		if strings.Contains(content, signal) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPendingConfirmationChat(content string) bool {
+	pendingSignals := []string{"明天", "确认", "给你说", "在的", "核对", "稍后", "晚点"}
+	matches := 0
+	for _, signal := range pendingSignals {
+		if strings.Contains(content, signal) {
+			matches++
+		}
+	}
+	return matches >= 2
 }
 
 func (r MockRunner) RegenerateFollowup(input RunInput) RunResult {
