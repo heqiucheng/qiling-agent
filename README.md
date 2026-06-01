@@ -55,6 +55,8 @@ All checks:
 .\scripts\check.ps1
 ```
 
+CI quality gates are documented in `docs/engineering/ci-quality-gates.md`.
+
 Backend load test:
 
 ```powershell

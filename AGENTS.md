@@ -113,6 +113,7 @@ docs/agents/
 - 后端架构：模块化单体，按 `docs/architecture/backend-architecture.md` 执行。
 - 后续真实接口对接前必须先定义 API Contract，并完成本地 smoke test 或 mock 验证。
 - 同仓质量门禁优先运行 `.\scripts\check.ps1`；单独调试时可分别进入 `frontend/` 或 `backend/` 运行对应命令。
+- GitHub Actions 默认只运行确定性检查；MySQL 集成测试和压测必须按 `docs/engineering/ci-quality-gates.md` 手动触发，不能误用生产或共享数据库。
 
 ## 工程原则
 
