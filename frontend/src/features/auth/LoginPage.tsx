@@ -22,8 +22,12 @@ export function LoginPage() {
           <p className="page__subtitle">选择一个演示身份进入系统。</p>
         </div>
         <div className="task-card__actions">
-          <Button variant="primary" onClick={() => enter("sales")}>销售视角</Button>
-          <Button variant="secondary" onClick={() => enter("manager")}>主管视角</Button>
+          <Button variant="primary" onClick={() => enter("sales")}>
+            销售视角
+          </Button>
+          <Button variant="secondary" onClick={() => enter("manager")}>
+            主管视角
+          </Button>
         </div>
       </Card>
     </main>

@@ -6,10 +6,10 @@ export function SettingsPage() {
       <header className="page__header">
         <div>
           <h1 className="page__title">设置</h1>
-          <p className="page__subtitle">MVP 仅保留必要配置入口。</p>
+          <p className="page__subtitle">MVP 仅保留必要配置入口，真实外部系统接入前必须先完成本地验证。</p>
         </div>
       </header>
-      <EmptyState title="设置骨架已就绪" message="后续加入个人信息、角色信息、企业微信配置入口和 AI 分析偏好。" />
+      <EmptyState title="设置骨架已就绪" message="后续加入个人信息、角色信息、企业微信配置入口、AI 分析偏好和模型供应商配置。" />
     </section>
   );
 }

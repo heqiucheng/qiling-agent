@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
+
 import { AuthContext, type AuthContextValue } from "./auth-context-value";
 import type { MockRole, MockUser } from "./auth-types";
 
@@ -13,13 +14,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return stored === "manager" ? "manager" : "sales";
   });
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user: users[role],
-    switchRole: (nextRole) => {
-      window.localStorage.setItem("qiling_mock_role", nextRole);
-      setRole(nextRole);
-    }
-  }), [role]);
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user: users[role],
+      switchRole: (nextRole) => {
+        window.localStorage.setItem("qiling_mock_role", nextRole);
+        setRole(nextRole);
+      }
+    }),
+    [role]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

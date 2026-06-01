@@ -5,14 +5,15 @@ import { IntentBadge } from "../../components/customer/IntentBadge";
 import { StageBadge } from "../../components/customer/StageBadge";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { useAuth } from "../auth/use-auth";
 import { listCustomers } from "../../lib/api/customers";
 import type { Customer } from "../../types/customer";
+import { useAuth } from "../auth/use-auth";
 
 export function CustomersPage() {
   const { user } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [errorText, setErrorText] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -22,12 +23,14 @@ export function CustomersPage() {
         if (active) {
           setCustomers(result.items);
           setLoaded(true);
+          setErrorText("");
         }
       })
       .catch(() => {
         if (active) {
           setCustomers([]);
           setLoaded(true);
+          setErrorText("客户列表读取失败，请确认后端服务已经启动。");
         }
       });
 
@@ -41,7 +44,8 @@ export function CustomersPage() {
       <header className="page__header">
         <div>
           <h1 className="page__title">客户</h1>
-          <p className="page__subtitle">查看客户阶段、意向、主要顾虑和待跟进状态。</p>
+          <p className="page__subtitle">查看客户阶段、意向、主要顾虑、待办数量和长期记忆入口。</p>
+          {errorText ? <p className="page__subtitle">{errorText}</p> : null}
         </div>
       </header>
       {customers.length > 0 ? (
@@ -57,9 +61,17 @@ export function CustomersPage() {
             </div>
             {customers.map((customer) => (
               <div className="data-table__row" role="row" key={customer.id}>
-                <strong role="cell"><Link className="text-link" to={`/app/customers/${customer.id}`}>{customer.name}</Link></strong>
-                <span role="cell"><StageBadge stage={customer.stage} /></span>
-                <span role="cell"><IntentBadge level={customer.intent} /></span>
+                <strong role="cell">
+                  <Link className="text-link" to={`/app/customers/${customer.id}`}>
+                    {customer.name}
+                  </Link>
+                </strong>
+                <span role="cell">
+                  <StageBadge stage={customer.stage} />
+                </span>
+                <span role="cell">
+                  <IntentBadge level={customer.intent} />
+                </span>
                 <span role="cell">{customer.owner}</span>
                 <span role="cell">{customer.concerns.join(" / ")}</span>
                 <span role="cell">{customer.pendingTasks}</span>
@@ -70,7 +82,7 @@ export function CustomersPage() {
       ) : (
         <EmptyState
           title={loaded ? "暂无客户数据" : "正在读取客户数据"}
-          message={loaded ? "可以先从数据接入页导入聊天记录。" : "如果后端未启动，将保持空状态。"}
+          message={loaded ? "可以先从数据接入页导入聊天记录。" : "读取完成后会展示客户画像和待办状态。"}
           action="导入聊天记录后自动生成客户画像"
         />
       )}

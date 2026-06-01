@@ -1,8 +1,8 @@
-import type { PageResult } from "../../types/api";
 import type { AgentRecommendation } from "../../types/agent";
+import type { PageResult } from "../../types/api";
 import type { FollowupTask } from "../../types/followup";
 import { apiGet, apiPost } from "./client";
-import type { FollowupTaskDto, PageDto, RegenerateTaskResultDto, TaskCopyResultDto, TaskStatusResultDto, MarkWrongResultDto } from "./dto";
+import type { FollowupTaskDto, MarkWrongResultDto, PageDto, RegenerateTaskResultDto, TaskCopyResultDto, TaskStatusResultDto } from "./dto";
 import { mapFollowupTask, mapPage, mapRecommendation } from "./mappers";
 
 export async function listPendingFollowupTasks(): Promise<PageResult<FollowupTask>> {

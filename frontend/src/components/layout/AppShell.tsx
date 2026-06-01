@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from "react-router-dom";
 import { BarChart3, DatabaseZap, Home, MessageSquareText, Settings, Users } from "lucide-react";
+import { NavLink, Outlet } from "react-router-dom";
+
 import { useAuth } from "../../features/auth/use-auth";
 
 const navItems = [
@@ -13,6 +14,7 @@ const navItems = [
 
 export function AppShell() {
   const { user, switchRole } = useAuth();
+  const nextRoleLabel = user.role === "sales" ? "主管视角" : "销售视角";
 
   return (
     <div className="app-shell">
@@ -41,9 +43,9 @@ export function AppShell() {
             <span>{user.name}</span>
           </div>
           <div className="top-bar__meta">
-            <span>同步状态：Mock 数据</span>
+            <span>同步状态：连接本地后端，失败时使用兜底数据</span>
             <button className="role-switch" type="button" onClick={() => switchRole(user.role === "sales" ? "manager" : "sales")}>
-              切换为{user.role === "sales" ? "主管" : "销售"}
+              切换为{nextRoleLabel}
             </button>
           </div>
         </header>

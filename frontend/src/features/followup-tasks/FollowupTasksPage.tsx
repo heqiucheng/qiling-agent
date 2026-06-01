@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 
 import { ScriptTaskCard } from "../../components/followup/ScriptTaskCard";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { useAuth } from "../auth/use-auth";
 import { copyFollowupTask, listPendingFollowupTasks, markFollowupTaskWrong, regenerateFollowupTask, skipFollowupTask } from "../../lib/api/followupTasks";
 import { mockTasks } from "../../lib/mock/dashboard";
 import type { FollowupTask } from "../../types/followup";
+import { useAuth } from "../auth/use-auth";
 
 export function FollowupTasksPage() {
   const { user } = useAuth();
@@ -26,6 +26,7 @@ export function FollowupTasksPage() {
       .catch(() => {
         if (active) {
           setTasks(mockTasks);
+          setStatusText("后端不可用，当前展示兜底演示话术。");
         }
       });
 
@@ -92,7 +93,7 @@ export function FollowupTasksPage() {
       <header className="page__header">
         <div>
           <h1 className="page__title">待确认话术</h1>
-          <p className="page__subtitle">集中处理 Agent 自动生成的待确认话术。</p>
+          <p className="page__subtitle">集中处理 Agent 自动生成的话术，复制、重写、跳过和纠错都会回写后端。</p>
           <p className="page__subtitle">{statusText}</p>
         </div>
       </header>

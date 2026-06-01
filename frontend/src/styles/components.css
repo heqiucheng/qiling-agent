@@ -39,6 +39,10 @@
   color: var(--color-text-secondary);
 }
 
+.button-link {
+  text-decoration: none;
+}
+
 .badge {
   align-items: center;
   border-radius: 999px;
