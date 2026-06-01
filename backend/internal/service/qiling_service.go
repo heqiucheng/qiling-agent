@@ -21,6 +21,13 @@ func NewQilingService(store store.Repository) *QilingService {
 	return &QilingService{store: store, agent: agent.NewMockRunner()}
 }
 
+func NewQilingServiceWithAgent(store store.Repository, runner agent.Runner) *QilingService {
+	if runner == nil {
+		runner = agent.NewMockRunner()
+	}
+	return &QilingService{store: store, agent: runner}
+}
+
 func (s *QilingService) DashboardSummary(actor domain.Actor) domain.DashboardSummary {
 	customers := visibleCustomers(s.store.Customers(), actor)
 	tasks := visibleTasks(s.store.FollowupTasks(), actor)

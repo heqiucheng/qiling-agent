@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/heqiucheng/qiling-agent/backend/internal/agent"
 	"github.com/heqiucheng/qiling-agent/backend/internal/config"
 	"github.com/heqiucheng/qiling-agent/backend/internal/http/handler"
 	"github.com/heqiucheng/qiling-agent/backend/internal/httpx"
@@ -22,8 +23,12 @@ func NewRouterWithRepository(cfg config.Config, repository store.Repository) htt
 }
 
 func NewRouterWithRepositoryAndLogger(cfg config.Config, repository store.Repository, logger *slog.Logger) http.Handler {
+	return NewRouterWithRepositoryAgentAndLogger(cfg, repository, agent.NewMockRunner(), logger)
+}
+
+func NewRouterWithRepositoryAgentAndLogger(cfg config.Config, repository store.Repository, runner agent.Runner, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
-	qilingService := service.NewQilingService(repository)
+	qilingService := service.NewQilingServiceWithAgent(repository, runner)
 	dashboardHandler := handler.DashboardHandler{Service: qilingService}
 	customersHandler := handler.CustomersHandler{Service: qilingService}
 	followupTasksHandler := handler.FollowupTasksHandler{Service: qilingService}

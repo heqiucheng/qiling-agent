@@ -1,13 +1,13 @@
 # LLM Integration Boundary
 
-Status: pre-integration foundation  
+Status: OpenAI-compatible provider boundary implemented  
 Date: 2026-06-01
 
 ## Goal
 
 Qiling Agent must not scatter model calls, prompt strings, or output parsing across handlers, services, or repositories. The LLM boundary keeps model integration replaceable and testable.
 
-Current stage uses only local mock behavior. No real external model API is called.
+Default local behavior still uses mock mode. Real Codex/OpenAI-compatible calls are enabled only when `QILING_LLM_PROVIDER=openai_compatible` and the configured API key environment variable is present.
 
 ## Package Boundaries
 
@@ -141,20 +141,48 @@ QILING_LLM_PROVIDER=mock
 QILING_LLM_MODEL=mock-local-v1
 ```
 
+Codex proxy mode:
+
+```text
+QILING_LLM_PROVIDER=openai_compatible
+QILING_LLM_MODEL=gpt-5.4
+QILING_LLM_BASE_URL=https://api.claudecode.net.cn/api/codex/backend-api/codex
+QILING_LLM_API_KEY_ENV=AICODEMIRROR_API_KEY
+AICODEMIRROR_API_KEY=<local secret only>
+```
+
 Rules:
 
 - Do not commit provider API keys.
 - Do not require real LLM credentials in CI.
 - Do not call paid/external LLM APIs without explicit user approval.
 - Real provider clients must have local mock tests before business code uses them.
+- Provider API keys must be read from environment variables and must never be committed.
+
+## Implemented Provider Client
+
+`internal/integration/llm.OpenAICompatibleClient` calls an OpenAI-compatible Chat Completions endpoint:
+
+```text
+POST {QILING_LLM_BASE_URL}/v1/chat/completions
+Authorization: Bearer {AICODEMIRROR_API_KEY}
+```
+
+The request uses:
+
+- `model` from `QILING_LLM_MODEL`;
+- system/user `messages` from `agent.BuildGenerateRequest`;
+- `response_format: {"type":"json_object"}`;
+- metadata for task type and memory-context presence.
+
+The response content is still parsed by `agent.ParseRecommendation`, then validated before it can become a business recommendation. Provider failures, invalid JSON, or missing required fields fall back to deterministic local output and are recorded in AgentRun validation errors.
 
 ## Next Implementation Step
 
-When moving from mock to real LLM:
+Next steps:
 
-1. Add a provider client under `internal/integration/llm`.
-2. Keep the `llm.Client` interface stable.
-3. Parse model output into `domain.AgentRecommendation`.
-4. Validate schema before creating AgentRun output.
-5. Record provider/model/prompt version and memory-aware input summary in AgentRun.
-6. Add failure handling and fallback behavior before enabling user-facing traffic.
+1. Run a real-provider smoke test with a local `AICODEMIRROR_API_KEY`.
+2. Confirm which Codex models the proxy account can call.
+3. Tune prompt wording if the provider returns non-JSON despite `response_format`.
+4. Add model routing after the single-model path is stable.
+5. Add usage/cost logging if the proxy exposes token usage.
