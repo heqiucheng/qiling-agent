@@ -77,13 +77,21 @@ Current prompt inputs:
 CustomerName
 OwnerID
 RawContent
-MemoryContext
+ShortTermMemoryContext
+LongTermMemoryContext
 Instruction
 ExistingTask
 Now
 ```
 
-`MemoryContext` is produced by the service layer and injected into the user prompt as `Short-term memory`. The Agent package owns the final prompt assembly, so handlers and repositories still do not build prompts.
+Memory context is produced by the service layer and injected into the user prompt as separate sections:
+
+```text
+Short-term memory
+Long-term memory
+```
+
+The Agent package owns the final prompt assembly, so handlers and repositories still do not build prompts.
 
 AgentRun `input_summary` includes a compact memory-aware summary. This gives later debugging and evaluation a trace of the context used for generation without storing unbounded full transcripts.
 

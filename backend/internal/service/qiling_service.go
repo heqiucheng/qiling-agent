@@ -310,11 +310,12 @@ func (s *QilingService) ConfirmUpload(uploadID string, req ConfirmUploadRequest,
 	}
 	memoryContext := s.memoryContextForUpload(customerName, upload, actor)
 	agentRun := s.agent.GenerateFollowup(agent.RunInput{
-		CustomerName:  customerName,
-		OwnerID:       req.OwnerID,
-		RawContent:    conversationContentSummary(upload.Messages),
-		MemoryContext: memoryContext,
-		Now:           time.Now().UTC(),
+		CustomerName:           customerName,
+		OwnerID:                req.OwnerID,
+		RawContent:             conversationContentSummary(upload.Messages),
+		ShortTermMemoryContext: memoryContext.ShortTerm,
+		LongTermMemoryContext:  memoryContext.LongTerm,
+		Now:                    time.Now().UTC(),
 	})
 	result, err := s.store.ConfirmUpload(uploadID, customerName, req.OwnerID, store.ConfirmUploadAgentRun{
 		TaskType:         agentRun.TaskType,
@@ -552,15 +553,28 @@ func normalizeMemoryKey(value string) string {
 	return value
 }
 
-func (s *QilingService) memoryContextForUpload(customerName string, upload domain.UploadRecord, actor domain.Actor) string {
+type agentMemoryContext struct {
+	ShortTerm string
+	LongTerm  string
+}
+
+func (s *QilingService) memoryContextForUpload(customerName string, upload domain.UploadRecord, actor domain.Actor) agentMemoryContext {
 	if customer, ok := s.customerByName(customerName, actor); ok {
-		memory, err := s.CustomerShortTermMemory(customer.ID, actor)
-		if err == nil && strings.TrimSpace(memory.PromptContext) != "" {
-			return memory.PromptContext
+		context := agentMemoryContext{}
+		shortTerm, err := s.CustomerShortTermMemory(customer.ID, actor)
+		if err == nil {
+			context.ShortTerm = shortTerm.PromptContext
+		}
+		longTerm, err := s.CustomerLongTermMemory(customer.ID, actor)
+		if err == nil {
+			context.LongTerm = longTerm.PromptContext
+		}
+		if strings.TrimSpace(context.ShortTerm) != "" || strings.TrimSpace(context.LongTerm) != "" {
+			return context
 		}
 	}
 
-	return buildUploadMemoryContext(customerName, upload)
+	return agentMemoryContext{ShortTerm: buildUploadMemoryContext(customerName, upload)}
 }
 
 func (s *QilingService) customerByName(customerName string, actor domain.Actor) (domain.Customer, bool) {

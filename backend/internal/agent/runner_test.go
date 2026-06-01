@@ -38,10 +38,11 @@ func TestBuildGenerateRequestIncludesPromptSchemaAndContext(t *testing.T) {
 	}
 
 	request := BuildGenerateRequest(RunInput{
-		CustomerName:  "Wang",
-		OwnerID:       "usr_001",
-		RawContent:    "price concern",
-		MemoryContext: "Customer: Wang\nStage: price_objection",
+		CustomerName:           "Wang",
+		OwnerID:                "usr_001",
+		RawContent:             "price concern",
+		ShortTermMemoryContext: "Customer: Wang\nStage: price_objection",
+		LongTermMemoryContext:  "Long-term memory for customer: Wang\n- concern.price: price",
 	}, template, ModelMockLocalV1)
 
 	if request.Model != ModelMockLocalV1 {
@@ -59,20 +60,33 @@ func TestBuildGenerateRequestIncludesPromptSchemaAndContext(t *testing.T) {
 	if !strings.Contains(request.Messages[1].Content, "Short-term memory:") {
 		t.Fatalf("expected short-term memory in user prompt, got %s", request.Messages[1].Content)
 	}
+	if !strings.Contains(request.Messages[1].Content, "Long-term memory:") {
+		t.Fatalf("expected long-term memory in user prompt, got %s", request.Messages[1].Content)
+	}
 	if request.Metadata["has_memory_context"] != true {
 		t.Fatalf("expected memory metadata, got %#v", request.Metadata["has_memory_context"])
+	}
+	if request.Metadata["has_short_term_memory_context"] != true {
+		t.Fatalf("expected short-term memory metadata, got %#v", request.Metadata["has_short_term_memory_context"])
+	}
+	if request.Metadata["has_long_term_memory_context"] != true {
+		t.Fatalf("expected long-term memory metadata, got %#v", request.Metadata["has_long_term_memory_context"])
 	}
 }
 
 func TestRunnerInputSummaryIncludesMemoryContext(t *testing.T) {
 	result := NewMockRunner().GenerateFollowup(RunInput{
-		CustomerName:  "Wang",
-		RawContent:    "current uploaded conversation",
-		MemoryContext: "Customer: Wang\nRecent tasks:\n- pending | explain value",
+		CustomerName:           "Wang",
+		RawContent:             "current uploaded conversation",
+		ShortTermMemoryContext: "Customer: Wang\nRecent tasks:\n- pending | explain value",
+		LongTermMemoryContext:  "Long-term memory for customer: Wang\n- concern.price: price",
 	})
 
 	if !strings.Contains(result.InputSummary, "memory context:") {
 		t.Fatalf("expected memory context in input summary, got %s", result.InputSummary)
+	}
+	if !strings.Contains(result.InputSummary, "long-term:") {
+		t.Fatalf("expected long-term memory in input summary, got %s", result.InputSummary)
 	}
 }
 

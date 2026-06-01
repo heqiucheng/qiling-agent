@@ -10,13 +10,15 @@ import (
 )
 
 type RunInput struct {
-	CustomerName  string
-	OwnerID       string
-	RawContent    string
-	MemoryContext string
-	Instruction   string
-	ExistingTask  *domain.FollowupTask
-	Now           time.Time
+	CustomerName           string
+	OwnerID                string
+	RawContent             string
+	MemoryContext          string
+	ShortTermMemoryContext string
+	LongTermMemoryContext  string
+	Instruction            string
+	ExistingTask           *domain.FollowupTask
+	Now                    time.Time
 }
 
 type RunResult struct {
@@ -106,10 +108,12 @@ func BuildGenerateRequest(input RunInput, template PromptTemplate, model string)
 			{Role: "user", Content: buildUserPrompt(input, template)},
 		},
 		Metadata: map[string]any{
-			"task_type":          template.TaskType,
-			"customer_name":      input.CustomerName,
-			"owner_id":           input.OwnerID,
-			"has_memory_context": strings.TrimSpace(input.MemoryContext) != "",
+			"task_type":                     template.TaskType,
+			"customer_name":                 input.CustomerName,
+			"owner_id":                      input.OwnerID,
+			"has_memory_context":            hasAnyMemoryContext(input),
+			"has_short_term_memory_context": strings.TrimSpace(shortTermMemoryContext(input)) != "",
+			"has_long_term_memory_context":  strings.TrimSpace(input.LongTermMemoryContext) != "",
 		},
 	}
 }
@@ -188,8 +192,11 @@ func buildUserPrompt(input RunInput, template PromptTemplate) string {
 	if strings.TrimSpace(input.RawContent) != "" {
 		parts = append(parts, "Conversation:\n"+strings.TrimSpace(input.RawContent))
 	}
-	if strings.TrimSpace(input.MemoryContext) != "" {
-		parts = append(parts, "Short-term memory:\n"+strings.TrimSpace(input.MemoryContext))
+	if strings.TrimSpace(shortTermMemoryContext(input)) != "" {
+		parts = append(parts, "Short-term memory:\n"+strings.TrimSpace(shortTermMemoryContext(input)))
+	}
+	if strings.TrimSpace(input.LongTermMemoryContext) != "" {
+		parts = append(parts, "Long-term memory:\n"+strings.TrimSpace(input.LongTermMemoryContext))
 	}
 	if strings.TrimSpace(input.Instruction) != "" {
 		parts = append(parts, "User feedback:\n"+strings.TrimSpace(input.Instruction))
@@ -199,14 +206,43 @@ func buildUserPrompt(input RunInput, template PromptTemplate) string {
 
 func summarizeRunInput(input RunInput, primary string, fallback string) string {
 	primary = strings.TrimSpace(primary)
-	memory := strings.TrimSpace(input.MemoryContext)
-	if memory == "" {
+	memory := combinedMemoryContext(input)
+	if strings.TrimSpace(memory) == "" {
 		return summarizeInput(primary, fallback)
 	}
-	if primary == "" {
-		return summarizeInput("memory context: "+memory, fallback)
+	header := "memory context:"
+	if strings.TrimSpace(shortTermMemoryContext(input)) != "" {
+		header += " short-term: present;"
 	}
-	return summarizeInput("memory context: "+memory+"\ncurrent input: "+primary, fallback)
+	if strings.TrimSpace(input.LongTermMemoryContext) != "" {
+		header += " long-term: present;"
+	}
+	if primary == "" {
+		return summarizeInput(header+"\n"+memory, fallback)
+	}
+	return summarizeInput(header+"\n"+memory+"\ncurrent input: "+primary, fallback)
+}
+
+func hasAnyMemoryContext(input RunInput) bool {
+	return strings.TrimSpace(combinedMemoryContext(input)) != ""
+}
+
+func shortTermMemoryContext(input RunInput) string {
+	if strings.TrimSpace(input.ShortTermMemoryContext) != "" {
+		return input.ShortTermMemoryContext
+	}
+	return input.MemoryContext
+}
+
+func combinedMemoryContext(input RunInput) string {
+	parts := make([]string, 0, 2)
+	if strings.TrimSpace(shortTermMemoryContext(input)) != "" {
+		parts = append(parts, "short-term: "+strings.TrimSpace(shortTermMemoryContext(input)))
+	}
+	if strings.TrimSpace(input.LongTermMemoryContext) != "" {
+		parts = append(parts, "long-term: "+strings.TrimSpace(input.LongTermMemoryContext))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func summarizeInput(value string, fallback string) string {

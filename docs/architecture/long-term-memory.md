@@ -84,4 +84,18 @@ Long-term memory should not depend on vector search. It is the durable fact laye
 
 ## Next Step
 
-The next step is to inject active long-term memory into Agent prompt context together with short-term memory, while keeping both sections labeled separately for debugging and evaluation.
+Active long-term memory is injected through `agent.RunInput.LongTermMemoryContext`.
+
+The Agent prompt keeps it separate from short-term memory:
+
+```text
+Short-term memory:
+...
+
+Long-term memory:
+...
+```
+
+This separation is intentional. If output quality drops, evaluation can see whether the issue came from recent context, durable facts, or the current user input.
+
+The next step is to design memory correction and rejection flows, so users can mark a durable fact as wrong without deleting the source AgentRun.

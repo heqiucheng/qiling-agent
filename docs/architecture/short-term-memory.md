@@ -71,7 +71,7 @@ Examples of future long-term memory:
 
 ## Next Step
 
-Short-term memory is now injected through `agent.RunInput.MemoryContext`.
+Short-term memory is now injected through `agent.RunInput.ShortTermMemoryContext`.
 
 The Agent runner appends this context to the user prompt under a `Short-term memory` section and records a compact memory-aware `input_summary` in AgentRun. This keeps the generated recommendation tied to the context the Agent saw at execution time.
 
