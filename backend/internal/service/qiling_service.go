@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/heqiucheng/qiling-agent/backend/internal/agent"
 	"github.com/heqiucheng/qiling-agent/backend/internal/apperror"
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
 	"github.com/heqiucheng/qiling-agent/backend/internal/store"
@@ -13,10 +14,11 @@ import (
 
 type QilingService struct {
 	store store.Repository
+	agent agent.Runner
 }
 
 func NewQilingService(store store.Repository) *QilingService {
-	return &QilingService{store: store}
+	return &QilingService{store: store, agent: agent.NewMockRunner()}
 }
 
 func (s *QilingService) DashboardSummary(actor domain.Actor) domain.DashboardSummary {
@@ -253,7 +255,29 @@ func (s *QilingService) ConfirmUpload(uploadID string, req ConfirmUploadRequest,
 	if req.OwnerID == "" {
 		req.OwnerID = "usr_001"
 	}
-	result, err := s.store.ConfirmUpload(uploadID, req.CustomerName, req.OwnerID)
+	upload, err := s.Upload(uploadID)
+	if err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+	customerName := req.CustomerName
+	if strings.TrimSpace(customerName) == "" {
+		customerName = upload.ParsedCustomer.Name
+	}
+	agentRun := s.agent.GenerateFollowup(agent.RunInput{
+		CustomerName: customerName,
+		OwnerID:      req.OwnerID,
+		RawContent:   conversationContentSummary(upload.Messages),
+		Now:          time.Now().UTC(),
+	})
+	result, err := s.store.ConfirmUpload(uploadID, customerName, req.OwnerID, store.ConfirmUploadAgentRun{
+		TaskType:         agentRun.TaskType,
+		Model:            agentRun.Model,
+		PromptVersion:    agentRun.PromptVersion,
+		InputSummary:     agentRun.InputSummary,
+		Recommendation:   agentRun.Recommendation,
+		ValidationErrors: agentRun.ValidationErrors,
+		RiskFlags:        agentRun.RiskFlags,
+	})
 	if err != nil {
 		return domain.ConfirmUploadResult{}, err
 	}
@@ -406,6 +430,17 @@ func effectiveActor(actor domain.Actor, fallbackUserID string) domain.Actor {
 		role = "sales"
 	}
 	return domain.Actor{UserID: fallbackUserID, Role: role}
+}
+
+func conversationContentSummary(messages []domain.ConversationMessage) string {
+	parts := make([]string, 0, len(messages))
+	for _, message := range messages {
+		content := strings.TrimSpace(message.Content)
+		if content != "" {
+			parts = append(parts, content)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func countCustomersByIntent(customers []domain.Customer, intent domain.IntentLevel) int {

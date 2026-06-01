@@ -248,7 +248,7 @@ func (s *MockStore) Upload(id string) (domain.UploadRecord, bool) {
 	return record, ok
 }
 
-func (s *MockStore) ConfirmUpload(uploadID string, customerName string, ownerID string) (domain.ConfirmUploadResult, error) {
+func (s *MockStore) ConfirmUpload(uploadID string, customerName string, ownerID string, agentRun ConfirmUploadAgentRun) (domain.ConfirmUploadResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -282,16 +282,14 @@ func (s *MockStore) ConfirmUpload(uploadID string, customerName string, ownerID 
 		RiskFlags:      []string{"涉及价格承诺，需人工确认"},
 	}
 
-	task := newTask(taskID, customer, "price_objection", "2026-05-28T10:31:00Z", domain.AgentRecommendation{
-		CustomerStage:     domain.StagePriceObjection,
-		IntentLevel:       domain.IntentHigh,
-		MainConcerns:      []string{"价格", "效果"},
-		RecommendedAction: "解释价值并提供案例",
-		Script:            "您好，您刚才提到价格和效果，我建议先结合您的使用场景看投入产出，我可以给您整理一个接近情况的案例。",
-		Reasoning:         "上传内容显示客户关注价格和效果，需要先建立价值感再推动下一步。",
-		RiskFlags:         []string{"避免直接承诺优惠或效果"},
-		NextFollowupTime:  "2026-05-28T16:00:00Z",
-	})
+	if agentRun.Recommendation.CustomerStage == "" {
+		agentRun.Recommendation = agent.NewMockRunner().GenerateFollowup(agent.RunInput{
+			CustomerName: customerName,
+			OwnerID:      ownerID,
+			RawContent:   record.Messages[0].Content,
+		}).Recommendation
+	}
+	task := newTask(taskID, customer, "price_objection", "2026-05-28T10:31:00Z", agentRun.Recommendation)
 
 	record.Status = domain.UploadConfirmed
 	s.uploads[uploadID] = record
@@ -300,14 +298,14 @@ func (s *MockStore) ConfirmUpload(uploadID string, customerName string, ownerID 
 	s.runs[agentRunID] = domain.AgentRun{
 		ID:               agentRunID,
 		CustomerID:       customerID,
-		TaskType:         agent.TaskGenerateFollowupScript,
+		TaskType:         firstNonEmpty(agentRun.TaskType, agent.TaskGenerateFollowupScript),
 		Status:           "succeeded",
-		Model:            agent.ModelMockLocalV1,
-		PromptVersion:    agent.PromptFollowupV1,
-		InputSummary:     "上传聊天记录生成客户画像和跟进话术",
+		Model:            firstNonEmpty(agentRun.Model, agent.ModelMockLocalV1),
+		PromptVersion:    firstNonEmpty(agentRun.PromptVersion, agent.PromptFollowupV1),
+		InputSummary:     firstNonEmpty(agentRun.InputSummary, "上传聊天记录生成客户画像和跟进话术"),
 		Output:           task.Recommendation,
-		ValidationErrors: agent.ValidateRecommendation(task.Recommendation),
-		RiskFlags:        task.Recommendation.RiskFlags,
+		ValidationErrors: agentRun.ValidationErrors,
+		RiskFlags:        fallbackStringList(agentRun.RiskFlags, task.Recommendation.RiskFlags),
 		CreatedAt:        "2026-05-28T10:31:00Z",
 		CompletedAt:      "2026-05-28T10:31:00Z",
 	}
@@ -515,6 +513,20 @@ func ownerName(ownerID string) string {
 	default:
 		return "销售A"
 	}
+}
+
+func firstNonEmpty(value string, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func fallbackStringList(values []string, fallback []string) []string {
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
 }
 
 func paginate[T any](items []T, page PageRequest) []T {

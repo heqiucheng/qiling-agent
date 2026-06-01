@@ -36,6 +36,16 @@ type ConversationMessagePage struct {
 	Total int
 }
 
+type ConfirmUploadAgentRun struct {
+	TaskType         string
+	Model            string
+	PromptVersion    string
+	InputSummary     string
+	Recommendation   domain.AgentRecommendation
+	ValidationErrors []string
+	RiskFlags        []string
+}
+
 type AuditEventFilter struct {
 	Action     string
 	ActorID    string
@@ -59,7 +69,7 @@ type Repository interface {
 	ConversationMessagePage(customerID string, page PageRequest) ConversationMessagePage
 	CreateUpload(sourceType string, content string, ownerID string) (domain.UploadRecord, error)
 	Upload(id string) (domain.UploadRecord, bool)
-	ConfirmUpload(uploadID string, customerName string, ownerID string) (domain.ConfirmUploadResult, error)
+	ConfirmUpload(uploadID string, customerName string, ownerID string, agentRun ConfirmUploadAgentRun) (domain.ConfirmUploadResult, error)
 	CopyTask(taskID string, copiedAt string) (domain.TaskCopyResult, error)
 	SkipTask(taskID string, reason string) (domain.TaskStatusResult, error)
 	MarkTaskWrong(taskID string, reason string) (domain.MarkWrongResult, error)

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/heqiucheng/qiling-agent/backend/internal/agent"
 	"github.com/heqiucheng/qiling-agent/backend/internal/db"
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
 )
@@ -34,6 +35,27 @@ func integrationRepository(t *testing.T) *MySQLRepository {
 	return NewMySQLRepository(database)
 }
 
+func testConfirmAgentRun() ConfirmUploadAgentRun {
+	recommendation := domain.AgentRecommendation{
+		CustomerStage:     domain.StagePriceObjection,
+		IntentLevel:       domain.IntentHigh,
+		MainConcerns:      []string{"价格", "效果"},
+		RecommendedAction: "解释价值并提供案例",
+		Script:            "您好，您刚才提到价格和效果，我建议先结合您的使用场景看投入产出。",
+		Reasoning:         "上传内容显示客户关注价格和效果，需要先建立价值感再推动下一步。",
+		RiskFlags:         []string{"避免直接承诺优惠或效果"},
+	}
+	return ConfirmUploadAgentRun{
+		TaskType:         agent.TaskGenerateFollowupScript,
+		Model:            agent.ModelMockLocalV1,
+		PromptVersion:    agent.PromptFollowupV1,
+		InputSummary:     "test uploaded conversation",
+		Recommendation:   recommendation,
+		ValidationErrors: agent.ValidateRecommendation(recommendation),
+		RiskFlags:        recommendation.RiskFlags,
+	}
+}
+
 func TestMySQLRepositoryConfirmUploadIsIdempotent(t *testing.T) {
 	repository := integrationRepository(t)
 
@@ -42,11 +64,11 @@ func TestMySQLRepositoryConfirmUploadIsIdempotent(t *testing.T) {
 		t.Fatalf("create upload: %v", err)
 	}
 
-	first, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001")
+	first, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001", testConfirmAgentRun())
 	if err != nil {
 		t.Fatalf("first confirm: %v", err)
 	}
-	second, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001")
+	second, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001", testConfirmAgentRun())
 	if err != nil {
 		t.Fatalf("second confirm should be idempotent: %v", err)
 	}
@@ -69,7 +91,7 @@ func TestMySQLRepositoryTaskStatusUpdateAllowsOneConcurrentWinner(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create upload: %v", err)
 	}
-	confirm, err := repository.ConfirmUpload(upload.ID, "李先生", "usr_001")
+	confirm, err := repository.ConfirmUpload(upload.ID, "李先生", "usr_001", testConfirmAgentRun())
 	if err != nil {
 		t.Fatalf("confirm upload: %v", err)
 	}
@@ -178,7 +200,7 @@ func TestMySQLRepositoryAgentRunLookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create upload: %v", err)
 	}
-	confirm, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001")
+	confirm, err := repository.ConfirmUpload(upload.ID, "王女士", "usr_001", testConfirmAgentRun())
 	if err != nil {
 		t.Fatalf("confirm upload: %v", err)
 	}
