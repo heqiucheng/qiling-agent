@@ -15,6 +15,7 @@ type MockStore struct {
 	uploads   map[string]domain.UploadRecord
 	customers []domain.Customer
 	tasks     []domain.FollowupTask
+	audit     []domain.AuditEvent
 }
 
 func NewMockStore() *MockStore {
@@ -67,6 +68,7 @@ func NewMockStore() *MockStore {
 		nextID:    4,
 		uploads:   map[string]domain.UploadRecord{},
 		customers: customers,
+		audit:     []domain.AuditEvent{},
 		tasks: []domain.FollowupTask{
 			newTask("task_001", customers[0], "price_objection", "2026-05-28T10:00:00Z", domain.AgentRecommendation{
 				CustomerStage:     domain.StagePriceObjection,
@@ -370,6 +372,48 @@ func (s *MockStore) RegenerateTask(taskID string, instruction string) (domain.Re
 		AgentRunID:     "run_" + taskID,
 		Recommendation: recommendation,
 	}, nil
+}
+
+func (s *MockStore) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if event.ID == "" {
+		event.ID = fmt.Sprintf("audit_%03d", s.nextID)
+		s.nextID++
+	}
+	if event.CreatedAt == "" {
+		event.CreatedAt = "2026-05-28T10:35:00Z"
+	}
+	if event.Metadata == nil {
+		event.Metadata = map[string]any{}
+	}
+	s.audit = append(s.audit, event)
+	return event, nil
+}
+
+func (s *MockStore) AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	filtered := make([]domain.AuditEvent, 0, len(s.audit))
+	for _, event := range s.audit {
+		if filter.Action != "" && string(event.Action) != filter.Action {
+			continue
+		}
+		if filter.ActorID != "" && event.Actor.UserID != filter.ActorID {
+			continue
+		}
+		if filter.EntityType != "" && event.EntityType != filter.EntityType {
+			continue
+		}
+		if filter.EntityID != "" && event.EntityID != filter.EntityID {
+			continue
+		}
+		filtered = append(filtered, event)
+	}
+
+	return AuditEventPage{Items: paginate(filtered, page), Total: len(filtered)}
 }
 
 func (s *MockStore) taskIndex(taskID string) (int, error) {

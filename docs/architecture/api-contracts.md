@@ -212,6 +212,47 @@ needs_review
 }
 ```
 
+## Audit Events
+
+### GET `/api/audit-events`
+
+Purpose: read the structured business event trail for follow-up review, debugging, future memory generation, and Agent explainability.
+
+Query:
+
+```text
+action
+actor_id
+entity_type
+entity_id
+page
+page_size
+```
+
+Sales users only read their own events. Managers can read all events or filter by `actor_id`.
+
+Item shape:
+
+```json
+{
+  "id": "audit_123",
+  "action": "followup_task.copied",
+  "actor": {
+    "user_id": "usr_001",
+    "role": "sales"
+  },
+  "request_id": "req_123",
+  "entity_type": "followup_task",
+  "entity_id": "task_001",
+  "related_type": "agent_run",
+  "related_id": "run_001",
+  "metadata": {
+    "has_script": true
+  },
+  "created_at": "2026-06-01T10:00:00Z"
+}
+```
+
 ## 6. 上传和解析聊天记录
 
 ### POST `/api/uploads/conversations`

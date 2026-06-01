@@ -382,6 +382,61 @@ func (r *MySQLRepository) RegenerateTask(taskID string, instruction string) (dom
 	return domain.RegenerateTaskResult{TaskID: taskID, AgentRunID: agentRunID, Recommendation: recommendation}, nil
 }
 
+func (r *MySQLRepository) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
+	now := time.Now().UTC()
+	if event.ID == "" {
+		event.ID = makeID("audit", now)
+	}
+	if event.CreatedAt == "" {
+		event.CreatedAt = formatTime(now)
+	}
+	if event.Metadata == nil {
+		event.Metadata = map[string]any{}
+	}
+
+	createdAt, err := time.Parse(time.RFC3339, event.CreatedAt)
+	if err != nil {
+		createdAt = now
+		event.CreatedAt = formatTime(now)
+	}
+	metadataJSON, err := json.Marshal(event.Metadata)
+	if err != nil {
+		return domain.AuditEvent{}, err
+	}
+
+	_, err = r.db.Exec(`
+		INSERT INTO audit_events (
+			id, action, actor_user_id, actor_role, request_id, entity_type, entity_id,
+			related_type, related_id, metadata, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, event.ID, event.Action, event.Actor.UserID, event.Actor.Role, event.RequestID, event.EntityType, event.EntityID, nullIfEmpty(event.RelatedType), nullIfEmpty(event.RelatedID), metadataJSON, createdAt)
+	if err != nil {
+		return domain.AuditEvent{}, err
+	}
+
+	return event, nil
+}
+
+func (r *MySQLRepository) AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage {
+	where, args := auditEventWhere(filter)
+	total := countRows(r.db, "SELECT COUNT(*) FROM audit_events"+where, args)
+
+	query := `
+		SELECT id, action, actor_user_id, actor_role, request_id, entity_type, entity_id,
+		       related_type, related_id, metadata, created_at
+		FROM audit_events
+	` + where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
+	args = append(args, page.PageSize, pageOffset(page))
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return AuditEventPage{Items: []domain.AuditEvent{}, Total: 0}
+	}
+	defer rows.Close()
+
+	return AuditEventPage{Items: scanAuditEvents(rows), Total: total}
+}
+
 type customerScanner interface {
 	Scan(dest ...any) error
 }
@@ -759,4 +814,84 @@ func countRows(db *sql.DB, query string, args []any) int {
 		return 0
 	}
 	return total
+}
+
+func scanAuditEvents(rows *sql.Rows) []domain.AuditEvent {
+	events := make([]domain.AuditEvent, 0)
+	for rows.Next() {
+		var event domain.AuditEvent
+		var action string
+		var actor domain.Actor
+		var relatedType sql.NullString
+		var relatedID sql.NullString
+		var metadataJSON []byte
+		var createdAt time.Time
+
+		if err := rows.Scan(
+			&event.ID,
+			&action,
+			&actor.UserID,
+			&actor.Role,
+			&event.RequestID,
+			&event.EntityType,
+			&event.EntityID,
+			&relatedType,
+			&relatedID,
+			&metadataJSON,
+			&createdAt,
+		); err != nil {
+			return []domain.AuditEvent{}
+		}
+
+		event.Action = domain.AuditAction(action)
+		event.Actor = actor
+		event.RelatedType = relatedType.String
+		event.RelatedID = relatedID.String
+		event.Metadata = decodeObject(metadataJSON)
+		event.CreatedAt = formatTime(createdAt)
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return []domain.AuditEvent{}
+	}
+	return events
+}
+
+func decodeObject(raw []byte) map[string]any {
+	if len(raw) == 0 {
+		return map[string]any{}
+	}
+	value := map[string]any{}
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return map[string]any{}
+	}
+	return value
+}
+
+func auditEventWhere(filter AuditEventFilter) (string, []any) {
+	conditions := make([]string, 0)
+	args := make([]any, 0)
+
+	if filter.Action != "" {
+		conditions = append(conditions, "action = ?")
+		args = append(args, filter.Action)
+	}
+	if filter.ActorID != "" {
+		conditions = append(conditions, "actor_user_id = ?")
+		args = append(args, filter.ActorID)
+	}
+	if filter.EntityType != "" {
+		conditions = append(conditions, "entity_type = ?")
+		args = append(args, filter.EntityType)
+	}
+	if filter.EntityID != "" {
+		conditions = append(conditions, "entity_id = ?")
+		args = append(args, filter.EntityID)
+	}
+
+	return whereClause(conditions), args
+}
+
+func nullIfEmpty(value string) sql.NullString {
+	return sql.NullString{String: value, Valid: value != ""}
 }

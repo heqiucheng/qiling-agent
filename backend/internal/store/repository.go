@@ -36,6 +36,18 @@ type ConversationMessagePage struct {
 	Total int
 }
 
+type AuditEventFilter struct {
+	Action     string
+	ActorID    string
+	EntityType string
+	EntityID   string
+}
+
+type AuditEventPage struct {
+	Items []domain.AuditEvent
+	Total int
+}
+
 type Repository interface {
 	Customers() []domain.Customer
 	CustomerPage(filter CustomerFilter, page PageRequest) CustomerPage
@@ -52,4 +64,6 @@ type Repository interface {
 	SkipTask(taskID string, reason string) (domain.TaskStatusResult, error)
 	MarkTaskWrong(taskID string, reason string) (domain.MarkWrongResult, error)
 	RegenerateTask(taskID string, instruction string) (domain.RegenerateTaskResult, error)
+	CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error)
+	AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage
 }

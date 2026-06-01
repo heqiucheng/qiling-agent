@@ -1,8 +1,10 @@
 package service
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/heqiucheng/qiling-agent/backend/internal/apperror"
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
@@ -188,7 +190,7 @@ type RegenerateTaskRequest struct {
 	Instruction string `json:"instruction"`
 }
 
-func (s *QilingService) UploadConversation(req UploadConversationRequest) (domain.UploadConversationResult, error) {
+func (s *QilingService) UploadConversation(req UploadConversationRequest, actor domain.Actor, requestID string) (domain.UploadConversationResult, error) {
 	if strings.TrimSpace(req.Content) == "" {
 		return domain.UploadConversationResult{}, apperror.New("EMPTY_CONTENT", "聊天记录为空", map[string]any{"field": "content"})
 	}
@@ -204,6 +206,20 @@ func (s *QilingService) UploadConversation(req UploadConversationRequest) (domai
 
 	record, err := s.store.CreateUpload(req.SourceType, req.Content, req.OwnerID)
 	if err != nil {
+		return domain.UploadConversationResult{}, err
+	}
+	if err := s.recordAudit(domain.AuditEvent{
+		Action:     domain.AuditUploadConversationCreated,
+		Actor:      effectiveActor(actor, req.OwnerID),
+		RequestID:  requestID,
+		EntityType: "upload",
+		EntityID:   record.ID,
+		Metadata: map[string]any{
+			"source_type":     record.SourceType,
+			"message_count":   len(record.Messages),
+			"parsed_customer": record.ParsedCustomer.Name,
+		},
+	}); err != nil {
 		return domain.UploadConversationResult{}, err
 	}
 
@@ -225,34 +241,163 @@ func (s *QilingService) Upload(uploadID string) (domain.UploadRecord, error) {
 	return record, nil
 }
 
-func (s *QilingService) ConfirmUpload(uploadID string, req ConfirmUploadRequest) (domain.ConfirmUploadResult, error) {
+func (s *QilingService) ConfirmUpload(uploadID string, req ConfirmUploadRequest, actor domain.Actor, requestID string) (domain.ConfirmUploadResult, error) {
 	if req.OwnerID == "" {
 		req.OwnerID = "usr_001"
 	}
-	return s.store.ConfirmUpload(uploadID, req.CustomerName, req.OwnerID)
+	result, err := s.store.ConfirmUpload(uploadID, req.CustomerName, req.OwnerID)
+	if err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+	if err := s.recordAudit(domain.AuditEvent{
+		Action:      domain.AuditUploadConfirmed,
+		Actor:       effectiveActor(actor, req.OwnerID),
+		RequestID:   requestID,
+		EntityType:  "upload",
+		EntityID:    uploadID,
+		RelatedType: "customer",
+		RelatedID:   result.CustomerID,
+		Metadata: map[string]any{
+			"agent_run_id":      result.AgentRunID,
+			"conversation_id":   result.ConversationID,
+			"followup_task_id":  result.FollowupTaskID,
+			"customer_name":     req.CustomerName,
+			"confirmation_mode": "manual",
+		},
+	}); err != nil {
+		return domain.ConfirmUploadResult{}, err
+	}
+	return result, nil
 }
 
-func (s *QilingService) CopyTask(taskID string, req CopyTaskRequest) (domain.TaskCopyResult, error) {
+func (s *QilingService) CopyTask(taskID string, req CopyTaskRequest, actor domain.Actor, requestID string) (domain.TaskCopyResult, error) {
 	copiedAt := req.ClientCopiedAt
 	if copiedAt == "" {
 		copiedAt = "2026-05-28T10:35:00Z"
 	}
-	return s.store.CopyTask(taskID, copiedAt)
+	result, err := s.store.CopyTask(taskID, copiedAt)
+	if err != nil {
+		return domain.TaskCopyResult{}, err
+	}
+	if err := s.recordAudit(domain.AuditEvent{
+		Action:     domain.AuditFollowupTaskCopied,
+		Actor:      actor,
+		RequestID:  requestID,
+		EntityType: "followup_task",
+		EntityID:   taskID,
+		Metadata: map[string]any{
+			"client_copied_at": copiedAt,
+			"has_script":       strings.TrimSpace(req.CopiedScript) != "",
+		},
+	}); err != nil {
+		return domain.TaskCopyResult{}, err
+	}
+	return result, nil
 }
 
-func (s *QilingService) SkipTask(taskID string, req SkipTaskRequest) (domain.TaskStatusResult, error) {
-	return s.store.SkipTask(taskID, req.Reason)
+func (s *QilingService) SkipTask(taskID string, req SkipTaskRequest, actor domain.Actor, requestID string) (domain.TaskStatusResult, error) {
+	result, err := s.store.SkipTask(taskID, req.Reason)
+	if err != nil {
+		return domain.TaskStatusResult{}, err
+	}
+	if err := s.recordAudit(domain.AuditEvent{
+		Action:     domain.AuditFollowupTaskSkipped,
+		Actor:      actor,
+		RequestID:  requestID,
+		EntityType: "followup_task",
+		EntityID:   taskID,
+		Metadata: map[string]any{
+			"reason": req.Reason,
+		},
+	}); err != nil {
+		return domain.TaskStatusResult{}, err
+	}
+	return result, nil
 }
 
-func (s *QilingService) MarkTaskWrong(taskID string, req MarkWrongRequest) (domain.MarkWrongResult, error) {
+func (s *QilingService) MarkTaskWrong(taskID string, req MarkWrongRequest, actor domain.Actor, requestID string) (domain.MarkWrongResult, error) {
 	if strings.TrimSpace(req.Reason) == "" {
 		return domain.MarkWrongResult{}, apperror.New("VALIDATION_ERROR", "标记不准必须填写原因", map[string]any{"field": "reason"})
 	}
-	return s.store.MarkTaskWrong(taskID, req.Reason)
+	result, err := s.store.MarkTaskWrong(taskID, req.Reason)
+	if err != nil {
+		return domain.MarkWrongResult{}, err
+	}
+	if err := s.recordAudit(domain.AuditEvent{
+		Action:     domain.AuditFollowupTaskMarkedWrong,
+		Actor:      actor,
+		RequestID:  requestID,
+		EntityType: "followup_task",
+		EntityID:   taskID,
+		Metadata: map[string]any{
+			"feedback_id":  result.FeedbackID,
+			"reason":       req.Reason,
+			"wrong_fields": req.WrongFields,
+		},
+	}); err != nil {
+		return domain.MarkWrongResult{}, err
+	}
+	return result, nil
 }
 
-func (s *QilingService) RegenerateTask(taskID string, req RegenerateTaskRequest) (domain.RegenerateTaskResult, error) {
-	return s.store.RegenerateTask(taskID, req.Instruction)
+func (s *QilingService) RegenerateTask(taskID string, req RegenerateTaskRequest, actor domain.Actor, requestID string) (domain.RegenerateTaskResult, error) {
+	result, err := s.store.RegenerateTask(taskID, req.Instruction)
+	if err != nil {
+		return domain.RegenerateTaskResult{}, err
+	}
+	if err := s.recordAudit(domain.AuditEvent{
+		Action:      domain.AuditFollowupTaskRegenerated,
+		Actor:       actor,
+		RequestID:   requestID,
+		EntityType:  "followup_task",
+		EntityID:    taskID,
+		RelatedType: "agent_run",
+		RelatedID:   result.AgentRunID,
+		Metadata: map[string]any{
+			"has_instruction": strings.TrimSpace(req.Instruction) != "",
+			"intent_level":    result.Recommendation.IntentLevel,
+			"customer_stage":  result.Recommendation.CustomerStage,
+		},
+	}); err != nil {
+		return domain.RegenerateTaskResult{}, err
+	}
+	return result, nil
+}
+
+func (s *QilingService) AuditEvents(r *http.Request, actor domain.Actor) PageResult[domain.AuditEvent] {
+	query := r.URL.Query()
+	page := PageRequestFromQuery(r)
+	filter := store.AuditEventFilter{
+		Action:     query.Get("action"),
+		EntityType: query.Get("entity_type"),
+		EntityID:   query.Get("entity_id"),
+	}
+	if actor.Role == "manager" {
+		filter.ActorID = query.Get("actor_id")
+	} else {
+		filter.ActorID = actor.UserID
+	}
+	result := s.store.AuditEventPage(filter, store.PageRequest{Page: page.Page, PageSize: page.PageSize})
+	return NewPageResultWithTotal(result.Items, page, result.Total)
+}
+
+func (s *QilingService) recordAudit(event domain.AuditEvent) error {
+	now := time.Now().UTC()
+	event.ID = fmt.Sprintf("audit_%d", now.UnixNano())
+	event.CreatedAt = now.Format(time.RFC3339)
+	_, err := s.store.CreateAuditEvent(event)
+	return err
+}
+
+func effectiveActor(actor domain.Actor, fallbackUserID string) domain.Actor {
+	if actor.UserID != "" {
+		return actor
+	}
+	role := actor.Role
+	if role == "" {
+		role = "sales"
+	}
+	return domain.Actor{UserID: fallbackUserID, Role: role}
 }
 
 func countCustomersByIntent(customers []domain.Customer, intent domain.IntentLevel) int {

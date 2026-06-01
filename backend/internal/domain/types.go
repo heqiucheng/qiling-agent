@@ -1,5 +1,29 @@
 package domain
 
+type AuditAction string
+
+const (
+	AuditUploadConversationCreated AuditAction = "upload.conversation.created"
+	AuditUploadConfirmed           AuditAction = "upload.confirmed"
+	AuditFollowupTaskCopied        AuditAction = "followup_task.copied"
+	AuditFollowupTaskSkipped       AuditAction = "followup_task.skipped"
+	AuditFollowupTaskMarkedWrong   AuditAction = "followup_task.marked_wrong"
+	AuditFollowupTaskRegenerated   AuditAction = "followup_task.regenerated"
+)
+
+type AuditEvent struct {
+	ID          string         `json:"id"`
+	Action      AuditAction    `json:"action"`
+	Actor       Actor          `json:"actor"`
+	RequestID   string         `json:"request_id"`
+	EntityType  string         `json:"entity_type"`
+	EntityID    string         `json:"entity_id"`
+	RelatedType string         `json:"related_type,omitempty"`
+	RelatedID   string         `json:"related_id,omitempty"`
+	Metadata    map[string]any `json:"metadata"`
+	CreatedAt   string         `json:"created_at"`
+}
+
 type IntentLevel string
 
 const (

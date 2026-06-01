@@ -279,6 +279,41 @@ func TestFollowupTaskActions(t *testing.T) {
 	}
 }
 
+func TestAuditEventsEndpointRecordsWriteActions(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	requestJSONWithHeaders(t, router, http.MethodPost, "/api/followup-tasks/task_001/copy", `{
+		"copied_script": "script",
+		"client_copied_at": "2026-05-28T10:05:00Z"
+	}`, http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+
+	body := requestJSONWithHeaders(t, router, http.MethodGet, "/api/audit-events?action=followup_task.copied", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	data := responseData(t, body)
+	if data["total"] != float64(1) {
+		t.Fatalf("expected one audit event, got %#v", data["total"])
+	}
+	items, ok := data["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one audit item, got %#v", data["items"])
+	}
+	event, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected audit event object, got %#v", items[0])
+	}
+	if event["entity_id"] != "task_001" {
+		t.Fatalf("expected task_001 entity, got %#v", event["entity_id"])
+	}
+	if _, ok := event["metadata"].(map[string]any); !ok {
+		t.Fatalf("expected metadata object, got %#v", event["metadata"])
+	}
+}
+
 func TestRegenerateTaskKeepsTaskPending(t *testing.T) {
 	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
 

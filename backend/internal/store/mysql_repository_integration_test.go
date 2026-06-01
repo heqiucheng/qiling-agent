@@ -133,3 +133,40 @@ func TestMySQLRepositoryPagesListQueries(t *testing.T) {
 		t.Fatalf("expected one message page item, got %d", len(messages.Items))
 	}
 }
+
+func TestMySQLRepositoryPersistsAuditEvents(t *testing.T) {
+	repository := integrationRepository(t)
+
+	created, err := repository.CreateAuditEvent(domain.AuditEvent{
+		Action:     domain.AuditFollowupTaskCopied,
+		Actor:      domain.Actor{UserID: "usr_001", Role: "sales"},
+		RequestID:  "req_test",
+		EntityType: "followup_task",
+		EntityID:   "task_001",
+		Metadata: map[string]any{
+			"has_script": true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create audit event: %v", err)
+	}
+
+	page := repository.AuditEventPage(AuditEventFilter{
+		Action:   string(domain.AuditFollowupTaskCopied),
+		ActorID:  "usr_001",
+		EntityID: "task_001",
+	}, PageRequest{Page: 1, PageSize: 10})
+
+	if page.Total != 1 {
+		t.Fatalf("expected one audit event, got %d", page.Total)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("expected one audit item, got %d", len(page.Items))
+	}
+	if page.Items[0].ID != created.ID {
+		t.Fatalf("expected audit id %s, got %s", created.ID, page.Items[0].ID)
+	}
+	if page.Items[0].Metadata["has_script"] != true {
+		t.Fatalf("expected metadata has_script true, got %#v", page.Items[0].Metadata["has_script"])
+	}
+}

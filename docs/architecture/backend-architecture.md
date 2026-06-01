@@ -384,3 +384,16 @@ agent 输出 schema 测试
 - 数据库：按 MySQL 设计，库名 `qiling_agent`。
 - AI：结构化输出 + AgentRun 可追溯。
 - 企业微信：必须先本地验证接口，再写业务功能。
+
+## 16. Audit Events Foundation
+
+`audit_events` is the durable event trail for write-side business actions. Current events cover conversation uploads, upload confirmations, script copy, task skip, wrong-result feedback, and task regeneration.
+
+Rules:
+
+- Store compact structured metadata only. Do not store full chat records, secrets, credentials, or large AI outputs in audit metadata.
+- Link every event to `request_id`, actor, primary entity, and optional related entity.
+- Keep audit queries paginated and indexed by action, actor, entity, and related entity.
+- Treat audit events as the source stream for later short-term memory, long-term memory, vector indexing, recall evaluation, and review reports.
+
+Detailed design: `docs/architecture/audit-and-events.md`.

@@ -26,7 +26,7 @@ func (h FollowupTasksHandler) Copy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.Service.CopyTask(taskID, req)
+	result, err := h.Service.CopyTask(taskID, req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
 	if err != nil {
 		WriteServiceError(w, r, err)
 		return
@@ -43,7 +43,7 @@ func (h FollowupTasksHandler) Skip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.Service.SkipTask(taskID, req)
+	result, err := h.Service.SkipTask(taskID, req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
 	if err != nil {
 		WriteServiceError(w, r, err)
 		return
@@ -60,7 +60,7 @@ func (h FollowupTasksHandler) MarkWrong(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	result, err := h.Service.MarkTaskWrong(taskID, req)
+	result, err := h.Service.MarkTaskWrong(taskID, req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
 	if err != nil {
 		WriteServiceError(w, r, err)
 		return
@@ -77,7 +77,7 @@ func (h FollowupTasksHandler) Regenerate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	result, err := h.Service.RegenerateTask(taskID, req)
+	result, err := h.Service.RegenerateTask(taskID, req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
 	if err != nil {
 		WriteServiceError(w, r, err)
 		return

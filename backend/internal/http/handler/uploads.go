@@ -20,7 +20,7 @@ func (h UploadsHandler) CreateConversation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	result, err := h.Service.UploadConversation(req)
+	result, err := h.Service.UploadConversation(req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
 	if err != nil {
 		WriteServiceError(w, r, err)
 		return
@@ -47,7 +47,7 @@ func (h UploadsHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.Service.ConfirmUpload(uploadID, req)
+	result, err := h.Service.ConfirmUpload(uploadID, req, httpx.ActorFromRequest(r), httpx.RequestIDFromRequest(r))
 	if err != nil {
 		WriteServiceError(w, r, err)
 		return
