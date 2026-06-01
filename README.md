@@ -97,6 +97,14 @@ Default backend storage is `mock`, so the app can run without MySQL during UI/AP
 
 `go run ./cmd/dbreset -confirm qiling_agent` drops local development tables and reruns migrations with demo seed data. Do not use it against production or shared databases.
 
+MySQL integration tests are opt-in and reset the configured database:
+
+```powershell
+cd backend
+$env:QILING_INTEGRATION_DATABASE_URL="root:your_password@tcp(127.0.0.1:3306)/qiling_agent?parseTime=true&charset=utf8mb4&loc=Local"
+go test ./internal/store -run MySQLRepository
+```
+
 Local frontend development proxies `/api` requests to `http://127.0.0.1:8080`, so start the backend before checking API-backed pages.
 
 ## 当前文档

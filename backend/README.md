@@ -35,6 +35,13 @@ QILING_DATABASE_URL=root:change_me@tcp(127.0.0.1:3306)/qiling_agent?parseTime=tr
 
 `dbreset` is for local development only. It drops Qiling tables and reruns migrations with demo seed data. The command requires `-confirm qiling_agent` to avoid accidental execution.
 
+MySQL integration tests are opt-in because they reset the configured database:
+
+```powershell
+$env:QILING_INTEGRATION_DATABASE_URL="root:your_password@tcp(127.0.0.1:3306)/qiling_agent?parseTime=true&charset=utf8mb4&loc=Local"
+go test ./internal/store -run MySQLRepository
+```
+
 ## Current API
 
 ```text

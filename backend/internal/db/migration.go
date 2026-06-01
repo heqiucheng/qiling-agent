@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+var ResetTables = []string{
+	"agent_runs",
+	"followup_tasks",
+	"conversation_messages",
+	"uploads",
+	"customers",
+	"users",
+}
+
 func RunMigrations(database *sql.DB, dir string) ([]string, error) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.sql"))
 	if err != nil {
@@ -28,6 +37,21 @@ func RunMigrations(database *sql.DB, dir string) ([]string, error) {
 		applied = append(applied, file)
 	}
 	return applied, nil
+}
+
+func Reset(database *sql.DB, migrationsDir string) ([]string, error) {
+	if _, err := database.Exec("SET FOREIGN_KEY_CHECKS = 0"); err != nil {
+		return nil, err
+	}
+	defer database.Exec("SET FOREIGN_KEY_CHECKS = 1")
+
+	for _, table := range ResetTables {
+		if _, err := database.Exec("DROP TABLE IF EXISTS " + table); err != nil {
+			return nil, err
+		}
+	}
+
+	return RunMigrations(database, migrationsDir)
 }
 
 func SplitSQLStatements(content string) []string {
