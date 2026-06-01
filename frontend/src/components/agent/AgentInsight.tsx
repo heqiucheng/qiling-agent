@@ -1,4 +1,5 @@
 import { Bot } from "lucide-react";
+
 import { Card } from "../ui/Card";
 
 interface AgentInsightProps {
@@ -24,7 +25,7 @@ export function AgentInsight({ action, reasoning, riskFlags }: AgentInsightProps
       </div>
       <div className="agent-insight__section">
         <span className="agent-insight__label">风险提示</span>
-        <p className="agent-insight__text">{riskFlags.join("；")}</p>
+        <p className="agent-insight__text">{riskFlags.join("，")}</p>
       </div>
     </Card>
   );

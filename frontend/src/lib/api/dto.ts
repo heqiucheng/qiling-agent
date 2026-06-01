@@ -146,6 +146,40 @@ export interface CustomerDetailDto {
   recent_agent_runs: Array<Record<string, unknown>>;
 }
 
+export type MemoryFactStatusDto = "active" | "superseded" | "rejected";
+
+export interface LongTermMemoryFactDto {
+  id: string;
+  customer_id: string;
+  category: string;
+  key: string;
+  value: string;
+  confidence: number;
+  source_type: string;
+  source_id: string;
+  status: MemoryFactStatusDto;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LongTermMemoryDto {
+  customer: CustomerDto;
+  facts: LongTermMemoryFactDto[];
+  prompt_context: string;
+  built_at: string;
+}
+
+export interface MemoryFactStatusResultDto {
+  fact_id: string;
+  status: MemoryFactStatusDto;
+}
+
+export interface MemoryFactCorrectionResultDto {
+  old_fact_id: string;
+  old_status: MemoryFactStatusDto;
+  new_fact: LongTermMemoryFactDto;
+}
+
 export interface ReviewInsightDto {
   title: string;
   evidence: string;

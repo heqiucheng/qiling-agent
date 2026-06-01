@@ -7,8 +7,9 @@ import type { ReviewMetric } from "../../types/review";
 import type { ConfirmUploadResult, UploadConversationResult } from "../../types/upload";
 import type { ConversationMessage } from "../../types/conversation";
 import type { CustomerDetail } from "../../types/customerDetail";
+import type { LongTermMemory, LongTermMemoryFact, MemoryFactCorrectionResult, MemoryFactStatusResult } from "../../types/memory";
 import type { ReviewInsight, ReviewSummary } from "../../types/review";
-import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, MetricDto, PageDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
+import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, LongTermMemoryDto, LongTermMemoryFactDto, MemoryFactCorrectionResultDto, MemoryFactStatusResultDto, MetricDto, PageDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
 import type { ConfirmUploadResultDto, UploadConversationResultDto } from "./dto";
 
 export function mapCustomer(dto: CustomerDto): Customer {
@@ -122,6 +123,46 @@ export function mapCustomerDetail(dto: CustomerDetailDto, messages: Conversation
     profileEvidence: dto.profile_evidence,
     recentTasks: dto.recent_tasks.map(mapFollowupTask),
     conversationMessages: messages
+  };
+}
+
+export function mapLongTermMemoryFact(dto: LongTermMemoryFactDto): LongTermMemoryFact {
+  return {
+    id: dto.id,
+    customerId: dto.customer_id,
+    category: dto.category,
+    key: dto.key,
+    value: dto.value,
+    confidence: dto.confidence,
+    sourceType: dto.source_type,
+    sourceId: dto.source_id,
+    status: dto.status,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at
+  };
+}
+
+export function mapLongTermMemory(dto: LongTermMemoryDto): LongTermMemory {
+  return {
+    customer: mapCustomer(dto.customer),
+    facts: dto.facts.map(mapLongTermMemoryFact),
+    promptContext: dto.prompt_context,
+    builtAt: dto.built_at
+  };
+}
+
+export function mapMemoryFactStatusResult(dto: MemoryFactStatusResultDto): MemoryFactStatusResult {
+  return {
+    factId: dto.fact_id,
+    status: dto.status
+  };
+}
+
+export function mapMemoryFactCorrectionResult(dto: MemoryFactCorrectionResultDto): MemoryFactCorrectionResult {
+  return {
+    oldFactId: dto.old_fact_id,
+    oldStatus: dto.old_status,
+    newFact: mapLongTermMemoryFact(dto.new_fact)
   };
 }
 
