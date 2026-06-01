@@ -237,6 +237,10 @@ type RegenerateTaskRequest struct {
 	Instruction string `json:"instruction"`
 }
 
+type RejectMemoryFactRequest struct {
+	Reason string `json:"reason"`
+}
+
 func (s *QilingService) UploadConversation(req UploadConversationRequest, actor domain.Actor, requestID string) (domain.UploadConversationResult, error) {
 	if strings.TrimSpace(req.Content) == "" {
 		return domain.UploadConversationResult{}, apperror.New("EMPTY_CONTENT", "聊天记录为空", map[string]any{"field": "content"})
@@ -443,6 +447,37 @@ func (s *QilingService) RegenerateTask(taskID string, req RegenerateTaskRequest,
 		},
 	}); err != nil {
 		return domain.RegenerateTaskResult{}, err
+	}
+	return result, nil
+}
+
+func (s *QilingService) RejectMemoryFact(customerID string, factID string, req RejectMemoryFactRequest, actor domain.Actor, requestID string) (domain.MemoryFactStatusResult, error) {
+	customer, ok := s.store.Customer(customerID)
+	if !ok {
+		return domain.MemoryFactStatusResult{}, apperror.New("NOT_FOUND", "customer not found", map[string]any{"customer_id": customerID})
+	}
+	if !canSeeCustomer(customer, actor) {
+		return domain.MemoryFactStatusResult{}, apperror.New("FORBIDDEN", "customer is not visible to current actor", map[string]any{"customer_id": customerID})
+	}
+
+	result, err := s.store.UpdateLongTermMemoryFactStatus(customerID, factID, domain.MemoryFactRejected)
+	if err != nil {
+		return domain.MemoryFactStatusResult{}, err
+	}
+	if err := s.recordAudit(domain.AuditEvent{
+		Action:      domain.AuditMemoryFactRejected,
+		Actor:       actor,
+		RequestID:   requestID,
+		EntityType:  "memory_fact",
+		EntityID:    factID,
+		RelatedType: "customer",
+		RelatedID:   customerID,
+		Metadata: map[string]any{
+			"reason": strings.TrimSpace(req.Reason),
+			"status": result.Status,
+		},
+	}); err != nil {
+		return domain.MemoryFactStatusResult{}, err
 	}
 	return result, nil
 }

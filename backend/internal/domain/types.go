@@ -9,6 +9,7 @@ const (
 	AuditFollowupTaskSkipped       AuditAction = "followup_task.skipped"
 	AuditFollowupTaskMarkedWrong   AuditAction = "followup_task.marked_wrong"
 	AuditFollowupTaskRegenerated   AuditAction = "followup_task.regenerated"
+	AuditMemoryFactRejected        AuditAction = "memory_fact.rejected"
 )
 
 type AuditEvent struct {
@@ -281,6 +282,11 @@ type LongTermMemory struct {
 	Facts         []LongTermMemoryFact `json:"facts"`
 	PromptContext string               `json:"prompt_context"`
 	BuiltAt       string               `json:"built_at"`
+}
+
+type MemoryFactStatusResult struct {
+	FactID string           `json:"fact_id"`
+	Status MemoryFactStatus `json:"status"`
 }
 
 type ReviewInsight struct {

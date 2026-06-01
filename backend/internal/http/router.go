@@ -63,6 +63,13 @@ func NewRouterWithRepositoryAndLogger(cfg config.Config, repository store.Reposi
 		}
 		http.NotFound(w, r)
 	})
+	mux.HandleFunc("POST /api/customers/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/long-term-memory/facts/") && strings.HasSuffix(r.URL.Path, "/reject") {
+			customersHandler.RejectMemoryFact(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
 	mux.HandleFunc("POST /api/followup-tasks/", func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/copy"):

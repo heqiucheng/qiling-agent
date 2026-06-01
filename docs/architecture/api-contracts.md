@@ -214,6 +214,62 @@ needs_review
 
 ## Audit Events
 
+## Long-Term Memory
+
+### GET `/api/customers/{customer_id}/long-term-memory`
+
+Purpose: read active durable customer facts and prompt-ready long-term memory context.
+
+Permissions match customer detail visibility. Sales users can only read their own customers.
+
+Response data shape:
+
+```json
+{
+  "customer": {},
+  "facts": [
+    {
+      "id": "mem_001",
+      "customer_id": "cus_001",
+      "category": "concern",
+      "key": "price",
+      "value": "price",
+      "confidence": 0.78,
+      "source_type": "agent_run",
+      "source_id": "run_001",
+      "status": "active",
+      "created_at": "2026-06-01T10:00:00Z",
+      "updated_at": "2026-06-01T10:00:00Z"
+    }
+  ],
+  "prompt_context": "Long-term memory for customer: ...",
+  "built_at": "2026-06-01T10:00:00Z"
+}
+```
+
+### POST `/api/customers/{customer_id}/long-term-memory/facts/{fact_id}/reject`
+
+Purpose: mark an incorrect durable fact as rejected without deleting its source trace.
+
+Request:
+
+```json
+{
+  "reason": "incorrect inference"
+}
+```
+
+Response data shape:
+
+```json
+{
+  "fact_id": "mem_001",
+  "status": "rejected"
+}
+```
+
+Rejected facts are excluded from active long-term memory and future prompt context. The rejection writes a `memory_fact.rejected` audit event.
+
 ### GET `/api/audit-events`
 
 Purpose: read the structured business event trail for follow-up review, debugging, future memory generation, and Agent explainability.

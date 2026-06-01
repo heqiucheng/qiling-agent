@@ -8,6 +8,7 @@ Long-term memory stores stable customer facts that can survive beyond the curren
 
 ```text
 GET /api/customers/{customer_id}/long-term-memory
+POST /api/customers/{customer_id}/long-term-memory/facts/{fact_id}/reject
 ```
 
 The endpoint returns:
@@ -59,6 +60,8 @@ These facts use the AgentRun as their source. That means a future correction can
 - Keep facts compact enough to inspect in API responses and AgentRun debugging.
 - Keep permissions tied to the customer visibility model.
 - Prefer updating stable fact keys over appending duplicates.
+- Reject bad facts by changing status to `rejected`; do not physically delete them.
+- Preserve the source AgentRun even when a fact is rejected.
 
 ## Relationship To Short-Term Memory
 
@@ -99,3 +102,22 @@ Long-term memory:
 This separation is intentional. If output quality drops, evaluation can see whether the issue came from recent context, durable facts, or the current user input.
 
 The next step is to design memory correction and rejection flows, so users can mark a durable fact as wrong without deleting the source AgentRun.
+## Rejection Flow
+
+Rejected facts are excluded from `GET /api/customers/{customer_id}/long-term-memory` because the read path only returns active facts.
+
+Rejecting a fact writes an audit event:
+
+```text
+memory_fact.rejected
+```
+
+The event records:
+
+- actor;
+- request id;
+- memory fact id;
+- customer id;
+- optional rejection reason.
+
+This keeps memory governance auditable while preventing rejected facts from entering later prompt context.

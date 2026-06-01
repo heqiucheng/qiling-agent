@@ -294,3 +294,42 @@ func TestMySQLRepositoryUpsertsLongTermMemoryFacts(t *testing.T) {
 		t.Fatalf("expected updated value medium, got %s", page.Items[0].Value)
 	}
 }
+
+func TestMySQLRepositoryRejectsLongTermMemoryFact(t *testing.T) {
+	repository := integrationRepository(t)
+
+	upload, err := repository.CreateUpload("pasted_text", "Customer A 10:20 price and effect need review", "usr_001")
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	confirm, err := repository.ConfirmUpload(upload.ID, "Customer A", "usr_001", testConfirmAgentRun())
+	if err != nil {
+		t.Fatalf("confirm upload: %v", err)
+	}
+	fact, err := repository.UpsertLongTermMemoryFact(domain.LongTermMemoryFact{
+		CustomerID: confirm.CustomerID,
+		Category:   "concern",
+		Key:        "price",
+		Value:      "price",
+		Confidence: 0.8,
+		SourceType: "agent_run",
+		SourceID:   confirm.AgentRunID,
+		Status:     domain.MemoryFactActive,
+	})
+	if err != nil {
+		t.Fatalf("upsert memory fact: %v", err)
+	}
+
+	result, err := repository.UpdateLongTermMemoryFactStatus(confirm.CustomerID, fact.ID, domain.MemoryFactRejected)
+	if err != nil {
+		t.Fatalf("reject memory fact: %v", err)
+	}
+	if result.Status != domain.MemoryFactRejected {
+		t.Fatalf("expected rejected status, got %s", result.Status)
+	}
+
+	page := repository.LongTermMemoryFacts(confirm.CustomerID, PageRequest{Page: 1, PageSize: 10})
+	if page.Total != 0 {
+		t.Fatalf("expected rejected fact to be excluded from active facts, got %d", page.Total)
+	}
+}

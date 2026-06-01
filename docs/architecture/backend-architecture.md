@@ -446,6 +446,7 @@ Current endpoint:
 
 ```text
 GET /api/customers/{id}/long-term-memory
+POST /api/customers/{id}/long-term-memory/facts/{fact_id}/reject
 ```
 
 Current table:
@@ -462,5 +463,6 @@ Rules:
 - Keep fact status explicit: `active`, `superseded`, or `rejected`.
 - Keep permissions identical to customer detail.
 - Do not introduce vector storage at this layer.
+- Rejected facts are excluded from prompt context but remain auditable.
 
 Detailed design: `docs/architecture/long-term-memory.md`.

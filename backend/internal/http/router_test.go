@@ -210,6 +210,55 @@ func TestCustomerLongTermMemoryEndpointAfterUploadConfirm(t *testing.T) {
 	}
 }
 
+func TestRejectLongTermMemoryFactRemovesItFromActiveMemory(t *testing.T) {
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+
+	uploadBody := postJSON(t, router, "/api/uploads/conversations", `{
+		"source_type": "pasted_text",
+		"content": "Customer A 10:20 price and effect need review",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	uploadID := responseData(t, uploadBody)["upload_id"].(string)
+	confirmBody := postJSON(t, router, "/api/uploads/"+uploadID+"/confirm", `{
+		"customer_name": "Customer A",
+		"owner_id": "usr_001"
+	}`, http.StatusOK)
+	customerID := responseData(t, confirmBody)["customer_id"].(string)
+
+	memoryBody := requestJSON(t, router, http.MethodGet, "/api/customers/"+customerID+"/long-term-memory", "", http.StatusOK)
+	memory := responseData(t, memoryBody)
+	facts := memory["facts"].([]any)
+	if len(facts) == 0 {
+		t.Fatal("expected generated memory facts")
+	}
+	fact := facts[0].(map[string]any)
+	factID := fact["id"].(string)
+
+	rejectBody := requestJSON(t, router, http.MethodPost, "/api/customers/"+customerID+"/long-term-memory/facts/"+factID+"/reject", `{
+		"reason": "incorrect inference"
+	}`, http.StatusOK)
+	reject := responseData(t, rejectBody)
+	if reject["status"] != "rejected" {
+		t.Fatalf("expected rejected status, got %#v", reject["status"])
+	}
+
+	afterBody := requestJSON(t, router, http.MethodGet, "/api/customers/"+customerID+"/long-term-memory", "", http.StatusOK)
+	after := responseData(t, afterBody)
+	activeFacts := after["facts"].([]any)
+	for _, item := range activeFacts {
+		active := item.(map[string]any)
+		if active["id"] == factID {
+			t.Fatalf("expected rejected fact %s to be excluded from active memory", factID)
+		}
+	}
+
+	auditBody := requestJSON(t, router, http.MethodGet, "/api/audit-events?action=memory_fact.rejected", "", http.StatusOK)
+	audit := responseData(t, auditBody)
+	if audit["total"] != float64(1) {
+		t.Fatalf("expected one memory rejection audit event, got %#v", audit["total"])
+	}
+}
+
 func TestSalesRoleCannotSeeOtherOwnersLongTermMemory(t *testing.T) {
 	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodGet, "/api/customers/cus_003/long-term-memory", "", http.StatusForbidden, map[string]string{
 		"X-Qiling-User-ID": "usr_001",

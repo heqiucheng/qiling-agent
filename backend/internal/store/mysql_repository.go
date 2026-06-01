@@ -509,6 +509,25 @@ func (r *MySQLRepository) UpsertLongTermMemoryFact(fact domain.LongTermMemoryFac
 	return fact, nil
 }
 
+func (r *MySQLRepository) UpdateLongTermMemoryFactStatus(customerID string, factID string, status domain.MemoryFactStatus) (domain.MemoryFactStatusResult, error) {
+	result, err := r.db.Exec(`
+		UPDATE customer_memory_facts
+		SET status = ?, updated_at = ?
+		WHERE customer_id = ? AND id = ?
+	`, status, time.Now().UTC(), customerID, factID)
+	if err != nil {
+		return domain.MemoryFactStatusResult{}, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return domain.MemoryFactStatusResult{}, err
+	}
+	if affected == 0 {
+		return domain.MemoryFactStatusResult{}, apperror.New("NOT_FOUND", "memory fact not found", map[string]any{"fact_id": factID})
+	}
+	return domain.MemoryFactStatusResult{FactID: factID, Status: status}, nil
+}
+
 func (r *MySQLRepository) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
 	now := time.Now().UTC()
 	if event.ID == "" {

@@ -481,6 +481,21 @@ func (s *MockStore) UpsertLongTermMemoryFact(fact domain.LongTermMemoryFact) (do
 	return fact, nil
 }
 
+func (s *MockStore) UpdateLongTermMemoryFactStatus(customerID string, factID string, status domain.MemoryFactStatus) (domain.MemoryFactStatusResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for key, fact := range s.facts {
+		if fact.CustomerID == customerID && fact.ID == factID {
+			fact.Status = status
+			fact.UpdatedAt = "2026-05-28T10:40:00Z"
+			s.facts[key] = fact
+			return domain.MemoryFactStatusResult{FactID: factID, Status: status}, nil
+		}
+	}
+	return domain.MemoryFactStatusResult{}, apperror.New("NOT_FOUND", "memory fact not found", map[string]any{"fact_id": factID})
+}
+
 func (s *MockStore) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
