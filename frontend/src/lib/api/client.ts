@@ -73,6 +73,22 @@ export async function apiGetText(path: string, init?: RequestInit): Promise<stri
   return response.text();
 }
 
+export async function apiGetBlob(path: string, init?: RequestInit): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      Accept: "application/octet-stream,*/*",
+      ...authHeaders(),
+      ...init?.headers
+    }
+  });
+
+  if (!response.ok) {
+    throw new ApiClientError("HTTP_ERROR", await response.text());
+  }
+  return response.blob();
+}
+
 function authHeaders(): Record<string, string> {
   const role = window.localStorage.getItem("qiling_mock_role") ?? DEFAULT_ROLE;
   return {

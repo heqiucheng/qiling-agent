@@ -1,5 +1,9 @@
 export function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
+  downloadBlob(filename, blob);
+}
+
+export function downloadBlob(filename: string, blob: Blob) {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

@@ -432,6 +432,24 @@ func TestCustomerIntentReportEndpoint(t *testing.T) {
 		t.Fatalf("expected markdown body, got %s", exportRec.Body.String())
 	}
 
+	xlsxReq := httptest.NewRequest(http.MethodGet, "/api/reports/"+reportID+"/export?format=xlsx", nil)
+	xlsxReq.Header.Set("X-Qiling-User-ID", "usr_001")
+	xlsxReq.Header.Set("X-Qiling-Role", "sales")
+	xlsxRec := httptest.NewRecorder()
+	router.ServeHTTP(xlsxRec, xlsxReq)
+	if xlsxRec.Code != http.StatusOK {
+		t.Fatalf("expected xlsx export 200, got %d body=%s", xlsxRec.Code, xlsxRec.Body.String())
+	}
+	if !strings.Contains(xlsxRec.Header().Get("Content-Type"), "spreadsheetml.sheet") {
+		t.Fatalf("expected xlsx content type, got %s", xlsxRec.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(xlsxRec.Header().Get("Content-Disposition"), reportID+".xlsx") {
+		t.Fatalf("expected xlsx filename, got %s", xlsxRec.Header().Get("Content-Disposition"))
+	}
+	if !strings.HasPrefix(xlsxRec.Body.String(), "PK") {
+		t.Fatalf("expected xlsx zip body")
+	}
+
 	unsupportedExportBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/reports/"+reportID+"/export?format=pdf", "", http.StatusBadRequest, map[string]string{
 		"X-Qiling-User-ID": "usr_001",
 		"X-Qiling-Role":    "sales",

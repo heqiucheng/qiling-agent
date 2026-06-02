@@ -1,6 +1,6 @@
 import type { PageResult } from "../../types/api";
 import type { Report, ReportSummary } from "../../types/report";
-import { apiGet, apiGetText, apiPost } from "./client";
+import { apiGet, apiGetBlob, apiGetText, apiPost } from "./client";
 import type { PageDto, ReportDto, ReportSummaryDto } from "./dto";
 import { mapPage, mapReport, mapReportSummary } from "./mappers";
 
@@ -21,4 +21,8 @@ export async function getReport(reportId: string): Promise<Report> {
 
 export async function exportReportMarkdown(reportId: string): Promise<string> {
   return apiGetText(`/api/reports/${reportId}/export?format=markdown`);
+}
+
+export async function exportReportXLSX(reportId: string): Promise<Blob> {
+  return apiGetBlob(`/api/reports/${reportId}/export?format=xlsx`);
 }

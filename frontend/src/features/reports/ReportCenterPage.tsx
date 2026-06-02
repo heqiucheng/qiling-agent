@@ -1,12 +1,12 @@
-import { Copy, Download, FileText, RefreshCw } from "lucide-react";
+import { Copy, Download, FileSpreadsheet, FileText, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { MetricCard } from "../../components/ui/MetricCard";
-import { exportReportMarkdown, generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
+import { exportReportMarkdown, exportReportXLSX, generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
 import { copyText } from "../../lib/clipboard";
-import { downloadTextFile } from "../../lib/download";
+import { downloadBlob, downloadTextFile } from "../../lib/download";
 import type { Report, ReportSummary } from "../../types/report";
 import { useAuth } from "../auth/use-auth";
 
@@ -15,7 +15,7 @@ export function ReportCenterPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [history, setHistory] = useState<ReportSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<"markdown" | "xlsx" | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [status, setStatus] = useState("");
 
@@ -66,7 +66,7 @@ export function ReportCenterPage() {
     if (!report) {
       return;
     }
-    setIsExporting(true);
+    setExportingFormat("markdown");
     setStatus("");
     try {
       const markdown = await exportReportMarkdown(report.id);
@@ -75,7 +75,24 @@ export function ReportCenterPage() {
     } catch {
       setStatus("Markdown 下载失败，请稍后重试");
     } finally {
-      setIsExporting(false);
+      setExportingFormat(null);
+    }
+  }
+
+  async function downloadExcel() {
+    if (!report) {
+      return;
+    }
+    setExportingFormat("xlsx");
+    setStatus("");
+    try {
+      const workbook = await exportReportXLSX(report.id);
+      downloadBlob(`${report.title}-${report.id}.xlsx`, workbook);
+      setStatus("Excel 报表已下载");
+    } catch {
+      setStatus("Excel 报表下载失败，请稍后重试");
+    } finally {
+      setExportingFormat(null);
     }
   }
 
@@ -135,9 +152,13 @@ export function ReportCenterPage() {
             <Copy size={16} aria-hidden="true" />
             复制 Markdown
           </Button>
-          <Button variant="secondary" onClick={downloadMarkdown} disabled={!report || isExporting}>
+          <Button variant="secondary" onClick={downloadMarkdown} disabled={!report || exportingFormat !== null}>
             <Download size={16} aria-hidden="true" />
-            {isExporting ? "下载中" : "下载 Markdown"}
+            {exportingFormat === "markdown" ? "下载中" : "下载 Markdown"}
+          </Button>
+          <Button variant="secondary" onClick={downloadExcel} disabled={!report || exportingFormat !== null}>
+            <FileSpreadsheet size={16} aria-hidden="true" />
+            {exportingFormat === "xlsx" ? "下载中" : "下载 Excel"}
           </Button>
         </div>
       </header>
