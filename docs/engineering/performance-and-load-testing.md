@@ -114,6 +114,7 @@ These numbers are local development baselines, not production capacity guarantee
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-06-01 | MySQL local demo data | read | 10s | 8 | 34,414 | 0 | 3,441.03 | 1.754ms | 5.495ms | 8.54ms |
 | 2026-06-02 | Mock store local | report | 5s | 4 | 12,548 | 0 | 2,508.01 | 0.523ms | 5.51ms | 7.511ms |
+| 2026-06-02 | MySQL local demo data | report | 5s | 4 | 4,432 | 0 | 885.79 | 2.08ms | 13.255ms | 16.598ms |
 
 Report scenario endpoint baseline from 2026-06-02 mock-store run:
 
@@ -124,3 +125,13 @@ Report scenario endpoint baseline from 2026-06-02 mock-store run:
 | `GET /api/reports/{id}/export?format=xlsx` | 2,510 | 0 | 4.454ms | 7.499ms | 9.348ms | 14.117ms |
 | `GET /api/reports?page=1&page_size=20` | 2,509 | 0 | 0.518ms | 1.555ms | 3.066ms | 4.448ms |
 | `POST /api/reports/customer-intent` | 2,509 | 0 | 0.516ms | 1.173ms | 2.61ms | 5.681ms |
+
+Report scenario endpoint baseline from 2026-06-02 MySQL local run:
+
+| Endpoint | Requests | Errors | P50 | P95 | P99 | Max |
+| --- | --- | --- | --- | --- | --- | --- |
+| `GET /api/reports/{id}` | 887 | 0 | 1.039ms | 2.714ms | 4.291ms | 14.595ms |
+| `GET /api/reports/{id}/export?format=markdown` | 887 | 0 | 1.056ms | 3.19ms | 5.407ms | 10.814ms |
+| `GET /api/reports/{id}/export?format=xlsx` | 886 | 0 | 4.845ms | 8.573ms | 10.625ms | 18.77ms |
+| `GET /api/reports?page=1&page_size=20` | 886 | 0 | 1.534ms | 3.806ms | 5.783ms | 10.067ms |
+| `POST /api/reports/customer-intent` | 886 | 0 | 11.409ms | 16.589ms | 21.144ms | 34.078ms |
