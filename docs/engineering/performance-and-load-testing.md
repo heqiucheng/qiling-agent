@@ -115,6 +115,7 @@ These numbers are local development baselines, not production capacity guarantee
 | 2026-06-01 | MySQL local demo data | read | 10s | 8 | 34,414 | 0 | 3,441.03 | 1.754ms | 5.495ms | 8.54ms |
 | 2026-06-02 | Mock store local | report | 5s | 4 | 12,548 | 0 | 2,508.01 | 0.523ms | 5.51ms | 7.511ms |
 | 2026-06-02 | MySQL local demo data | report | 5s | 4 | 4,432 | 0 | 885.79 | 2.08ms | 13.255ms | 16.598ms |
+| 2026-06-02 | MySQL local demo data with PDF export | report | 5s | 4 | 989 | 0 | 195.23 | 4.13ms | 92.999ms | 135.656ms |
 
 Report scenario endpoint baseline from 2026-06-02 mock-store run:
 
@@ -135,3 +136,16 @@ Report scenario endpoint baseline from 2026-06-02 MySQL local run:
 | `GET /api/reports/{id}/export?format=xlsx` | 886 | 0 | 4.845ms | 8.573ms | 10.625ms | 18.77ms |
 | `GET /api/reports?page=1&page_size=20` | 886 | 0 | 1.534ms | 3.806ms | 5.783ms | 10.067ms |
 | `POST /api/reports/customer-intent` | 886 | 0 | 11.409ms | 16.589ms | 21.144ms | 34.078ms |
+
+Report scenario endpoint baseline from 2026-06-02 MySQL local run after adding PDF export:
+
+| Endpoint | Requests | Errors | P50 | P95 | P99 | Max |
+| --- | --- | --- | --- | --- | --- | --- |
+| `GET /api/reports/{id}` | 165 | 0 | 1.135ms | 3.857ms | 4.839ms | 7.579ms |
+| `GET /api/reports/{id}/export?format=markdown` | 165 | 0 | 1.553ms | 4.622ms | 7.842ms | 11.881ms |
+| `GET /api/reports/{id}/export?format=pdf` | 165 | 0 | 85.796ms | 136.733ms | 152.198ms | 159.095ms |
+| `GET /api/reports/{id}/export?format=xlsx` | 165 | 0 | 5.24ms | 9.712ms | 13.007ms | 17.619ms |
+| `GET /api/reports?page=1&page_size=20` | 164 | 0 | 1.647ms | 5.074ms | 8.981ms | 14.73ms |
+| `POST /api/reports/customer-intent` | 165 | 0 | 13.427ms | 24.193ms | 30.784ms | 110.471ms |
+
+PDF export is now the heaviest report endpoint in local baseline testing. Keep it synchronous for MVP, but revisit async export jobs or file caching before production workloads.
