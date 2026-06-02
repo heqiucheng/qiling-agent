@@ -63,6 +63,9 @@ Available scenarios:
 | `read` | Exercises health, dashboard, customers, detail, conversations, tasks, and review summary. | No writes |
 | `upload` | Repeatedly posts uploaded conversation records. | Writes test upload rows |
 | `report` | Prepares one customer-intent report, then exercises report list, detail, report generation, Markdown export, XLSX export, and PDF export. | Writes saved report rows |
+| `report-read` | Prepares one customer-intent report, then exercises report list and detail only. | Writes one setup report |
+| `report-export` | Prepares one customer-intent report, then exercises Markdown, XLSX, and PDF exports only. | Writes one setup report |
+| `report-generate` | Repeatedly generates customer-intent reports. | Writes saved report rows |
 
 Use `upload` and `report` only against local or disposable environments until a reset command is available.
 
@@ -76,6 +79,13 @@ $env:QILING_LOADTEST_CONCURRENCY="8"
 ```
 
 The load-test output includes both overall latency and `by_endpoint` latency. Use `by_endpoint` to spot slow exporters, especially `format=xlsx` and `format=pdf`, instead of relying only on total P95.
+
+Use the split report scenarios when diagnosing regressions:
+
+```powershell
+$env:QILING_LOADTEST_SCENARIO="report-export"
+.\scripts\loadtest.ps1
+```
 
 After running write-heavy tests locally, reset demo data with:
 

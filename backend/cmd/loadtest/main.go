@@ -68,7 +68,7 @@ func main() {
 	baseURL := flag.String("base-url", "http://127.0.0.1:8080", "backend base URL")
 	duration := flag.Duration("duration", 30*time.Second, "load test duration")
 	concurrency := flag.Int("concurrency", 16, "concurrent workers")
-	scenario := flag.String("scenario", "read", "scenario: read, upload, or report")
+	scenario := flag.String("scenario", "read", "scenario: read, upload, report, report-read, report-export, or report-generate")
 	timeout := flag.Duration("timeout", 5*time.Second, "single request timeout")
 	userID := flag.String("user-id", "mgr_001", "X-Qiling-User-ID header")
 	role := flag.String("role", "manager", "X-Qiling-Role header")
@@ -85,12 +85,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if *scenario == "report" {
+	if strings.HasPrefix(*scenario, "report") {
 		reportID, err := prepareReportScenario(*baseURL, *timeout, *userID, *role)
 		if err != nil {
 			log.Fatal(err)
 		}
-		endpoints = reportEndpoints(reportID)
+		endpoints = reportEndpoints(*scenario, reportID)
 	}
 
 	startedAt := time.Now().UTC()
@@ -188,20 +188,24 @@ func scenarioEndpoints(name string) ([]endpoint, error) {
 				},
 			},
 		}, nil
-	case "report":
+	case "report", "report-read", "report-export", "report-generate":
 		return []endpoint{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported scenario %q", name)
 	}
 }
 
-func reportEndpoints(reportID string) []endpoint {
-	return []endpoint{
+func reportEndpoints(scenario string, reportID string) []endpoint {
+	readEndpoints := []endpoint{
 		{Method: http.MethodGet, Path: "/api/reports?page=1&page_size=20"},
 		{Method: http.MethodGet, Path: "/api/reports/" + reportID},
+	}
+	exportEndpoints := []endpoint{
 		{Method: http.MethodGet, Path: "/api/reports/" + reportID + "/export?format=markdown"},
 		{Method: http.MethodGet, Path: "/api/reports/" + reportID + "/export?format=xlsx"},
 		{Method: http.MethodGet, Path: "/api/reports/" + reportID + "/export?format=pdf"},
+	}
+	generateEndpoints := []endpoint{
 		{
 			Method: http.MethodPost,
 			Path:   "/api/reports/customer-intent",
@@ -209,6 +213,20 @@ func reportEndpoints(reportID string) []endpoint {
 				return `{"range":"last_7_days"}`
 			},
 		},
+	}
+	switch scenario {
+	case "report-read":
+		return readEndpoints
+	case "report-export":
+		return exportEndpoints
+	case "report-generate":
+		return generateEndpoints
+	default:
+		result := make([]endpoint, 0, len(readEndpoints)+len(exportEndpoints)+len(generateEndpoints))
+		result = append(result, readEndpoints...)
+		result = append(result, exportEndpoints...)
+		result = append(result, generateEndpoints...)
+		return result
 	}
 }
 
