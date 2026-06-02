@@ -468,7 +468,25 @@ func TestCustomerIntentReportEndpoint(t *testing.T) {
 		t.Fatalf("expected docx zip body")
 	}
 
-	unsupportedExportBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/reports/"+reportID+"/export?format=pdf", "", http.StatusBadRequest, map[string]string{
+	pdfReq := httptest.NewRequest(http.MethodGet, "/api/reports/"+reportID+"/export?format=pdf", nil)
+	pdfReq.Header.Set("X-Qiling-User-ID", "usr_001")
+	pdfReq.Header.Set("X-Qiling-Role", "sales")
+	pdfRec := httptest.NewRecorder()
+	router.ServeHTTP(pdfRec, pdfReq)
+	if pdfRec.Code != http.StatusOK {
+		t.Fatalf("expected pdf export 200, got %d body=%s", pdfRec.Code, pdfRec.Body.String())
+	}
+	if !strings.Contains(pdfRec.Header().Get("Content-Type"), "application/pdf") {
+		t.Fatalf("expected pdf content type, got %s", pdfRec.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(pdfRec.Header().Get("Content-Disposition"), reportID+".pdf") {
+		t.Fatalf("expected pdf filename, got %s", pdfRec.Header().Get("Content-Disposition"))
+	}
+	if !strings.HasPrefix(pdfRec.Body.String(), "%PDF") {
+		t.Fatalf("expected pdf body")
+	}
+
+	unsupportedExportBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/reports/"+reportID+"/export?format=pptx", "", http.StatusBadRequest, map[string]string{
 		"X-Qiling-User-ID": "usr_001",
 		"X-Qiling-Role":    "sales",
 	})

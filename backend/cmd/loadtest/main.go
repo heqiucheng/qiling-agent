@@ -201,6 +201,7 @@ func reportEndpoints(reportID string) []endpoint {
 		{Method: http.MethodGet, Path: "/api/reports/" + reportID},
 		{Method: http.MethodGet, Path: "/api/reports/" + reportID + "/export?format=markdown"},
 		{Method: http.MethodGet, Path: "/api/reports/" + reportID + "/export?format=xlsx"},
+		{Method: http.MethodGet, Path: "/api/reports/" + reportID + "/export?format=pdf"},
 		{
 			Method: http.MethodPost,
 			Path:   "/api/reports/customer-intent",

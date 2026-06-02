@@ -140,6 +140,16 @@ func (s *QilingService) ExportReport(reportID string, format string, actor domai
 			ContentType: reportDOCXContentType,
 			Body:        body,
 		}, nil
+	case "pdf":
+		body, err := renderReportPDF(report)
+		if err != nil {
+			return ReportExport{}, err
+		}
+		return ReportExport{
+			Filename:    safeReportExportFilename(report.ID) + ".pdf",
+			ContentType: reportPDFContentType,
+			Body:        body,
+		}, nil
 	default:
 		return ReportExport{}, apperror.New("UNSUPPORTED_EXPORT_FORMAT", "暂不支持该报告导出格式", map[string]any{"format": format})
 	}

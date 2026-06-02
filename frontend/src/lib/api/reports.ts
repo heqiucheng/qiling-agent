@@ -30,3 +30,7 @@ export async function exportReportXLSX(reportId: string): Promise<Blob> {
 export async function exportReportDOCX(reportId: string): Promise<Blob> {
   return apiGetBlob(`/api/reports/${reportId}/export?format=docx`);
 }
+
+export async function exportReportPDF(reportId: string): Promise<Blob> {
+  return apiGetBlob(`/api/reports/${reportId}/export?format=pdf`);
+}

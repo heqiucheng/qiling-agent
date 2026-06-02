@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { MetricCard } from "../../components/ui/MetricCard";
-import { exportReportDOCX, exportReportMarkdown, exportReportXLSX, generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
+import { exportReportDOCX, exportReportMarkdown, exportReportPDF, exportReportXLSX, generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
 import { copyText } from "../../lib/clipboard";
 import { downloadBlob, downloadTextFile } from "../../lib/download";
 import type { Report, ReportSummary } from "../../types/report";
@@ -15,7 +15,7 @@ export function ReportCenterPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [history, setHistory] = useState<ReportSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [exportingFormat, setExportingFormat] = useState<"markdown" | "xlsx" | "docx" | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<"markdown" | "xlsx" | "docx" | "pdf" | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [status, setStatus] = useState("");
 
@@ -113,6 +113,23 @@ export function ReportCenterPage() {
     }
   }
 
+  async function downloadPDF() {
+    if (!report) {
+      return;
+    }
+    setExportingFormat("pdf");
+    setStatus("");
+    try {
+      const pdf = await exportReportPDF(report.id);
+      downloadBlob(`${report.title}-${report.id}.pdf`, pdf);
+      setStatus("PDF 报告已下载");
+    } catch {
+      setStatus("PDF 报告下载失败，请稍后重试");
+    } finally {
+      setExportingFormat(null);
+    }
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -180,6 +197,10 @@ export function ReportCenterPage() {
           <Button variant="secondary" onClick={downloadWord} disabled={!report || exportingFormat !== null}>
             <FileType size={16} aria-hidden="true" />
             {exportingFormat === "docx" ? "下载中" : "下载 Word"}
+          </Button>
+          <Button variant="secondary" onClick={downloadPDF} disabled={!report || exportingFormat !== null}>
+            <FileText size={16} aria-hidden="true" />
+            {exportingFormat === "pdf" ? "下载中" : "下载 PDF"}
           </Button>
         </div>
       </header>
