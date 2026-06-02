@@ -60,7 +60,13 @@ func NewRouterWithRepositoryAgentAndLogger(cfg config.Config, repository store.R
 	mux.HandleFunc("GET /api/review-reports/summary", reviewReportsHandler.Summary)
 	mux.HandleFunc("GET /api/reports", reportsHandler.List)
 	mux.HandleFunc("POST /api/reports/customer-intent", reportsHandler.CustomerIntent)
-	mux.HandleFunc("GET /api/reports/", reportsHandler.Get)
+	mux.HandleFunc("GET /api/reports/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/export") {
+			reportsHandler.Export(w, r)
+			return
+		}
+		reportsHandler.Get(w, r)
+	})
 	mux.HandleFunc("GET /api/audit-events", auditEventsHandler.List)
 	mux.HandleFunc("GET /api/agent-runs/", agentRunsHandler.Get)
 	mux.HandleFunc("POST /api/uploads/conversations", uploadsHandler.CreateConversation)

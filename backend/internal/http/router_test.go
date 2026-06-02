@@ -413,6 +413,24 @@ func TestCustomerIntentReportEndpoint(t *testing.T) {
 	if listData["total"] != float64(1) {
 		t.Fatalf("expected one saved report, got %#v", listData["total"])
 	}
+
+	exportReq := httptest.NewRequest(http.MethodGet, "/api/reports/"+reportID+"/export?format=markdown", nil)
+	exportReq.Header.Set("X-Qiling-User-ID", "usr_001")
+	exportReq.Header.Set("X-Qiling-Role", "sales")
+	exportRec := httptest.NewRecorder()
+	router.ServeHTTP(exportRec, exportReq)
+	if exportRec.Code != http.StatusOK {
+		t.Fatalf("expected export 200, got %d body=%s", exportRec.Code, exportRec.Body.String())
+	}
+	if !strings.Contains(exportRec.Header().Get("Content-Type"), "text/markdown") {
+		t.Fatalf("expected markdown content type, got %s", exportRec.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(exportRec.Header().Get("Content-Disposition"), reportID+".md") {
+		t.Fatalf("expected markdown filename, got %s", exportRec.Header().Get("Content-Disposition"))
+	}
+	if !strings.Contains(exportRec.Body.String(), "#") {
+		t.Fatalf("expected markdown body, got %s", exportRec.Body.String())
+	}
 }
 
 func TestCustomerIntentReportRespectsSalesVisibility(t *testing.T) {

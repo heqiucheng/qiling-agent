@@ -79,7 +79,7 @@ Deferred. Preview can later return the current default report without creating a
 
 ### Export APIs
 
-Deferred until report schema is stable:
+Markdown export is implemented. DOCX, PDF, and XLSX are deferred until report schema and visual layout are stable:
 
 ```text
 GET /api/reports/{report_id}/export?format=markdown
@@ -88,7 +88,14 @@ GET /api/reports/{report_id}/export?format=pdf
 GET /api/reports/{report_id}/export?format=xlsx
 ```
 
-MVP returns Markdown inline in the report response.
+`format=markdown` returns a file response:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | `text/markdown; charset=utf-8` |
+| `Content-Disposition` | `attachment; filename="{report_id}.md"` |
+
+The report response still includes Markdown inline so users can copy quickly without downloading.
 
 ### GET `/api/reports`
 
@@ -247,7 +254,7 @@ Frontend:
 
 | Exporter | Implementation note |
 |---|---|
-| Markdown | Current MVP renderer. |
+| Markdown | Implemented as `GET /api/reports/{report_id}/export?format=markdown`. |
 | DOCX | Generate from structured sections, then render-check document layout. |
 | PDF | Use HTML print or server-side renderer after layout is stable. |
 | XLSX | Export customer rows, metrics, and action items as separate sheets. |

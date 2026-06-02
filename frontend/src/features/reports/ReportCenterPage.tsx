@@ -1,11 +1,12 @@
-import { Copy, FileText, RefreshCw } from "lucide-react";
+import { Copy, Download, FileText, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { MetricCard } from "../../components/ui/MetricCard";
-import { generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
+import { exportReportMarkdown, generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
 import { copyText } from "../../lib/clipboard";
+import { downloadTextFile } from "../../lib/download";
 import type { Report, ReportSummary } from "../../types/report";
 import { useAuth } from "../auth/use-auth";
 
@@ -14,6 +15,7 @@ export function ReportCenterPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [history, setHistory] = useState<ReportSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [status, setStatus] = useState("");
 
@@ -58,6 +60,23 @@ export function ReportCenterPage() {
     }
     const copied = await copyText(report.markdown);
     setStatus(copied ? "Markdown 已复制" : "当前浏览器不支持自动复制");
+  }
+
+  async function downloadMarkdown() {
+    if (!report) {
+      return;
+    }
+    setIsExporting(true);
+    setStatus("");
+    try {
+      const markdown = await exportReportMarkdown(report.id);
+      downloadTextFile(`${report.title}-${report.id}.md`, markdown, "text/markdown;charset=utf-8");
+      setStatus("Markdown 已下载");
+    } catch {
+      setStatus("Markdown 下载失败，请稍后重试");
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   useEffect(() => {
@@ -115,6 +134,10 @@ export function ReportCenterPage() {
           <Button variant="primary" onClick={copyMarkdown} disabled={!report}>
             <Copy size={16} aria-hidden="true" />
             复制 Markdown
+          </Button>
+          <Button variant="secondary" onClick={downloadMarkdown} disabled={!report || isExporting}>
+            <Download size={16} aria-hidden="true" />
+            {isExporting ? "下载中" : "下载 Markdown"}
           </Button>
         </div>
       </header>

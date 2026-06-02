@@ -57,6 +57,22 @@ export async function apiPost<TResponse, TRequest extends Record<string, unknown
   return body.data;
 }
 
+export async function apiGetText(path: string, init?: RequestInit): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      Accept: "text/markdown,text/plain,*/*",
+      ...authHeaders(),
+      ...init?.headers
+    }
+  });
+
+  if (!response.ok) {
+    throw new ApiClientError("HTTP_ERROR", await response.text());
+  }
+  return response.text();
+}
+
 function authHeaders(): Record<string, string> {
   const role = window.localStorage.getItem("qiling_mock_role") ?? DEFAULT_ROLE;
   return {
