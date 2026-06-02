@@ -22,6 +22,10 @@ type endpoint struct {
 	Body   func(int64) string
 }
 
+func (e endpoint) key() string {
+	return e.Method + " " + e.Path
+}
+
 type result struct {
 	Scenario      string         `json:"scenario"`
 	BaseURL       string         `json:"base_url"`
@@ -32,9 +36,25 @@ type result struct {
 	Errors        int64          `json:"errors"`
 	RPS           float64        `json:"rps"`
 	Latency       latencySummary `json:"latency_ms"`
+	ByEndpoint    []endpointStat `json:"by_endpoint"`
 	StatusCodes   map[int]int64  `json:"status_codes"`
 	StartedAt     string         `json:"started_at"`
 	FinishedAt    string         `json:"finished_at"`
+}
+
+type endpointStat struct {
+	Endpoint      string         `json:"endpoint"`
+	TotalRequests int64          `json:"total_requests"`
+	Success       int64          `json:"success"`
+	Errors        int64          `json:"errors"`
+	Latency       latencySummary `json:"latency_ms"`
+}
+
+type endpointAccumulator struct {
+	Total     int64
+	Success   int64
+	Errors    int64
+	Latencies []float64
 }
 
 type latencySummary struct {
@@ -48,7 +68,7 @@ func main() {
 	baseURL := flag.String("base-url", "http://127.0.0.1:8080", "backend base URL")
 	duration := flag.Duration("duration", 30*time.Second, "load test duration")
 	concurrency := flag.Int("concurrency", 16, "concurrent workers")
-	scenario := flag.String("scenario", "read", "scenario: read or upload")
+	scenario := flag.String("scenario", "read", "scenario: read, upload, or report")
 	timeout := flag.Duration("timeout", 5*time.Second, "single request timeout")
 	userID := flag.String("user-id", "mgr_001", "X-Qiling-User-ID header")
 	role := flag.String("role", "manager", "X-Qiling-Role header")
@@ -65,6 +85,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if *scenario == "report" {
+		reportID, err := prepareReportScenario(*baseURL, *timeout, *userID, *role)
+		if err != nil {
+			log.Fatal(err)
+		}
+		endpoints = reportEndpoints(reportID)
+	}
 
 	startedAt := time.Now().UTC()
 	deadline := time.Now().Add(*duration)
@@ -77,6 +104,7 @@ func main() {
 	var mu sync.Mutex
 	latencies := make([]float64, 0, *concurrency*128)
 	statusCodes := map[int]int64{}
+	endpointStats := map[string]*endpointAccumulator{}
 
 	var wg sync.WaitGroup
 	for workerID := 0; workerID < *concurrency; workerID++ {
@@ -98,6 +126,7 @@ func main() {
 				mu.Lock()
 				latencies = append(latencies, float64(elapsed.Microseconds())/1000)
 				statusCodes[statusCode]++
+				recordEndpoint(endpointStats, target.key(), elapsed, err == nil && statusCode < http.StatusBadRequest)
 				mu.Unlock()
 			}
 		}(workerID)
@@ -111,6 +140,7 @@ func main() {
 	for code, count := range statusCodes {
 		codes[code] = count
 	}
+	byEndpoint := summarizeEndpoints(endpointStats)
 	mu.Unlock()
 
 	report := result{
@@ -123,6 +153,7 @@ func main() {
 		Errors:        errors,
 		RPS:           float64(total) / finishedAt.Sub(startedAt).Seconds(),
 		Latency:       latency,
+		ByEndpoint:    byEndpoint,
 		StatusCodes:   codes,
 		StartedAt:     startedAt.Format(time.RFC3339),
 		FinishedAt:    finishedAt.Format(time.RFC3339),
@@ -157,9 +188,51 @@ func scenarioEndpoints(name string) ([]endpoint, error) {
 				},
 			},
 		}, nil
+	case "report":
+		return []endpoint{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported scenario %q", name)
 	}
+}
+
+func reportEndpoints(reportID string) []endpoint {
+	return []endpoint{
+		{Method: http.MethodGet, Path: "/api/reports?page=1&page_size=20"},
+		{Method: http.MethodGet, Path: "/api/reports/" + reportID},
+		{Method: http.MethodGet, Path: "/api/reports/" + reportID + "/export?format=markdown"},
+		{Method: http.MethodGet, Path: "/api/reports/" + reportID + "/export?format=xlsx"},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/reports/customer-intent",
+			Body: func(sequence int64) string {
+				return `{"range":"last_7_days"}`
+			},
+		},
+	}
+}
+
+func prepareReportScenario(baseURL string, timeout time.Duration, userID string, role string) (string, error) {
+	client := &http.Client{Timeout: timeout}
+	_, statusCode, body, err := executeWithBody(client, strings.TrimRight(baseURL, "/")+"/api/reports/customer-intent", http.MethodPost, `{"range":"last_7_days"}`, userID, role)
+	if err != nil {
+		return "", err
+	}
+	if statusCode >= http.StatusBadRequest {
+		return "", fmt.Errorf("prepare report scenario failed with status %d: %s", statusCode, body)
+	}
+
+	var response struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &response); err != nil {
+		return "", err
+	}
+	if response.Data.ID == "" {
+		return "", fmt.Errorf("prepare report scenario response missing report id")
+	}
+	return response.Data.ID, nil
 }
 
 func execute(client *http.Client, baseURL string, target endpoint, sequence int64, userID string, role string) (time.Duration, int, error) {
@@ -188,6 +261,33 @@ func execute(client *http.Client, baseURL string, target endpoint, sequence int6
 	return elapsed, resp.StatusCode, nil
 }
 
+func executeWithBody(client *http.Client, url string, method string, payload string, userID string, role string) (time.Duration, int, string, error) {
+	var body io.Reader
+	if payload != "" {
+		body = bytes.NewBufferString(payload)
+	}
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("X-Qiling-User-ID", userID)
+	req.Header.Set("X-Qiling-Role", role)
+
+	start := time.Now()
+	resp, err := client.Do(req)
+	elapsed := time.Since(start)
+	if err != nil {
+		return elapsed, 0, "", err
+	}
+	defer resp.Body.Close()
+	responseBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return elapsed, resp.StatusCode, "", readErr
+	}
+	return elapsed, resp.StatusCode, string(responseBody), nil
+}
+
 func summarizeLatency(values []float64) latencySummary {
 	if len(values) == 0 {
 		return latencySummary{}
@@ -200,6 +300,38 @@ func summarizeLatency(values []float64) latencySummary {
 		P99: percentile(values, 0.99),
 		Max: values[len(values)-1],
 	}
+}
+
+func recordEndpoint(stats map[string]*endpointAccumulator, key string, elapsed time.Duration, ok bool) {
+	current, exists := stats[key]
+	if !exists {
+		current = &endpointAccumulator{Latencies: make([]float64, 0, 128)}
+		stats[key] = current
+	}
+	current.Total++
+	if ok {
+		current.Success++
+	} else {
+		current.Errors++
+	}
+	current.Latencies = append(current.Latencies, float64(elapsed.Microseconds())/1000)
+}
+
+func summarizeEndpoints(stats map[string]*endpointAccumulator) []endpointStat {
+	result := make([]endpointStat, 0, len(stats))
+	for key, current := range stats {
+		result = append(result, endpointStat{
+			Endpoint:      key,
+			TotalRequests: current.Total,
+			Success:       current.Success,
+			Errors:        current.Errors,
+			Latency:       summarizeLatency(current.Latencies),
+		})
+	}
+	sort.Slice(result, func(left, right int) bool {
+		return result[left].Endpoint < result[right].Endpoint
+	})
+	return result
 }
 
 func percentile(values []float64, ratio float64) float64 {

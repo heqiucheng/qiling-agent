@@ -62,8 +62,20 @@ Available scenarios:
 | --- | --- | --- |
 | `read` | Exercises health, dashboard, customers, detail, conversations, tasks, and review summary. | No writes |
 | `upload` | Repeatedly posts uploaded conversation records. | Writes test upload rows |
+| `report` | Prepares one customer-intent report, then exercises report list, detail, report generation, Markdown export, and XLSX export. | Writes saved report rows |
 
-Use `upload` only against local or disposable environments until a reset command is available.
+Use `upload` and `report` only against local or disposable environments until a reset command is available.
+
+Run the report/export baseline:
+
+```powershell
+$env:QILING_LOADTEST_SCENARIO="report"
+$env:QILING_LOADTEST_DURATION="10s"
+$env:QILING_LOADTEST_CONCURRENCY="8"
+.\scripts\loadtest.ps1
+```
+
+The load-test output includes both overall latency and `by_endpoint` latency. Use `by_endpoint` to spot slow exporters, especially `format=xlsx`, instead of relying only on total P95.
 
 After running write-heavy tests locally, reset demo data with:
 
@@ -101,3 +113,14 @@ These numbers are local development baselines, not production capacity guarantee
 | Date | Store | Scenario | Duration | Concurrency | Requests | Errors | RPS | P50 | P95 | P99 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-06-01 | MySQL local demo data | read | 10s | 8 | 34,414 | 0 | 3,441.03 | 1.754ms | 5.495ms | 8.54ms |
+| 2026-06-02 | Mock store local | report | 5s | 4 | 12,548 | 0 | 2,508.01 | 0.523ms | 5.51ms | 7.511ms |
+
+Report scenario endpoint baseline from 2026-06-02 mock-store run:
+
+| Endpoint | Requests | Errors | P50 | P95 | P99 | Max |
+| --- | --- | --- | --- | --- | --- | --- |
+| `GET /api/reports/{id}` | 2,510 | 0 | 0ms | 1.039ms | 2.183ms | 4.993ms |
+| `GET /api/reports/{id}/export?format=markdown` | 2,510 | 0 | 0.518ms | 1.674ms | 3.224ms | 8.687ms |
+| `GET /api/reports/{id}/export?format=xlsx` | 2,510 | 0 | 4.454ms | 7.499ms | 9.348ms | 14.117ms |
+| `GET /api/reports?page=1&page_size=20` | 2,509 | 0 | 0.518ms | 1.555ms | 3.066ms | 4.448ms |
+| `POST /api/reports/customer-intent` | 2,509 | 0 | 0.516ms | 1.173ms | 2.61ms | 5.681ms |
