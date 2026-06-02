@@ -116,6 +116,7 @@ These numbers are local development baselines, not production capacity guarantee
 | 2026-06-02 | Mock store local | report | 5s | 4 | 12,548 | 0 | 2,508.01 | 0.523ms | 5.51ms | 7.511ms |
 | 2026-06-02 | MySQL local demo data | report | 5s | 4 | 4,432 | 0 | 885.79 | 2.08ms | 13.255ms | 16.598ms |
 | 2026-06-02 | MySQL local demo data with PDF export | report | 5s | 4 | 989 | 0 | 195.23 | 4.13ms | 92.999ms | 135.656ms |
+| 2026-06-02 | MySQL local demo data with export cache | report | 5s | 4 | 5,249 | 0 | 1,045.33 | 1.111ms | 13.578ms | 19.896ms |
 
 Report scenario endpoint baseline from 2026-06-02 mock-store run:
 
@@ -149,3 +150,16 @@ Report scenario endpoint baseline from 2026-06-02 MySQL local run after adding P
 | `POST /api/reports/customer-intent` | 165 | 0 | 13.427ms | 24.193ms | 30.784ms | 110.471ms |
 
 PDF export is now the heaviest report endpoint in local baseline testing. Keep it synchronous for MVP, but revisit async export jobs or file caching before production workloads.
+
+Report scenario endpoint baseline from 2026-06-02 MySQL local run after adding in-process export cache:
+
+| Endpoint | Requests | Errors | P50 | P95 | P99 | Max |
+| --- | --- | --- | --- | --- | --- | --- |
+| `GET /api/reports/{id}` | 875 | 0 | 1.047ms | 3.012ms | 4.923ms | 16.841ms |
+| `GET /api/reports/{id}/export?format=markdown` | 875 | 0 | 1.09ms | 3.974ms | 7.479ms | 13.739ms |
+| `GET /api/reports/{id}/export?format=pdf` | 875 | 0 | 1.049ms | 3.04ms | 7.544ms | 103.838ms |
+| `GET /api/reports/{id}/export?format=xlsx` | 875 | 0 | 1.045ms | 2.767ms | 5.301ms | 10.665ms |
+| `GET /api/reports?page=1&page_size=20` | 874 | 0 | 1.557ms | 3.726ms | 6.183ms | 21.263ms |
+| `POST /api/reports/customer-intent` | 875 | 0 | 11.784ms | 20.225ms | 31.508ms | 52.512ms |
+
+The export cache brought PDF P95 from 136.733ms to 3.04ms for repeated downloads of the same report. The max value still includes first-render cost, so production should still consider shared artifact storage or async export jobs for cold exports.

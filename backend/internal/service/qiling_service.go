@@ -13,19 +13,20 @@ import (
 )
 
 type QilingService struct {
-	store store.Repository
-	agent agent.Runner
+	store       store.Repository
+	agent       agent.Runner
+	exportCache *reportExportCache
 }
 
 func NewQilingService(store store.Repository) *QilingService {
-	return &QilingService{store: store, agent: agent.NewMockRunner()}
+	return &QilingService{store: store, agent: agent.NewMockRunner(), exportCache: newReportExportCache()}
 }
 
 func NewQilingServiceWithAgent(store store.Repository, runner agent.Runner) *QilingService {
 	if runner == nil {
 		runner = agent.NewMockRunner()
 	}
-	return &QilingService{store: store, agent: runner}
+	return &QilingService{store: store, agent: runner, exportCache: newReportExportCache()}
 }
 
 func (s *QilingService) DashboardSummary(actor domain.Actor) domain.DashboardSummary {

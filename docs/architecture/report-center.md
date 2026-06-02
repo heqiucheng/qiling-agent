@@ -99,6 +99,8 @@ The report response still includes Markdown inline so users can copy quickly wit
 
 Export format decisions live in `service.ExportReport`. HTTP handlers only translate the export result into response headers and body. This keeps DOCX, PDF, and XLSX support out of the routing layer when those formats are added.
 
+Exports are cached in-process by `report_id + generated_at + format`. The cache stores defensive byte copies so callers cannot mutate cached files. This is an MVP optimization for repeated downloads of the same report, especially PDF. It is not a cross-instance cache; production deployments should move hot export artifacts to object storage or a shared cache if multiple backend instances are used.
+
 ### GET `/api/reports`
 
 Lists persisted reports visible to the current actor. The backend filters by `owner_id` and `owner_role`; the frontend must not request broad report history and filter it locally.

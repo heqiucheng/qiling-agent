@@ -113,6 +113,18 @@ func (s *QilingService) ExportReport(reportID string, format string, actor domai
 	if format == "" {
 		format = "markdown"
 	}
+	cacheKey := reportExportCacheKey(report, format)
+	if cached, ok := s.exportCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+	export, err := renderReportExport(report, format)
+	if err != nil {
+		return ReportExport{}, err
+	}
+	return s.exportCache.Set(cacheKey, export), nil
+}
+
+func renderReportExport(report domain.Report, format string) (ReportExport, error) {
 	switch format {
 	case "markdown":
 		return ReportExport{
@@ -153,6 +165,10 @@ func (s *QilingService) ExportReport(reportID string, format string, actor domai
 	default:
 		return ReportExport{}, apperror.New("UNSUPPORTED_EXPORT_FORMAT", "暂不支持该报告导出格式", map[string]any{"format": format})
 	}
+}
+
+func reportExportCacheKey(report domain.Report, format string) string {
+	return report.ID + ":" + report.GeneratedAt + ":" + format
 }
 
 func safeReportExportFilename(value string) string {
