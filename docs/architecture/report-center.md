@@ -3,7 +3,7 @@
 Status: MVP design  
 Date: 2026-06-01
 
-Updated: 2026-06-02 - Report history persistence MVP is implemented.
+Updated: 2026-06-02 - Report history persistence, export cache, and export task records are implemented.
 
 ## Goal
 
@@ -38,6 +38,7 @@ The main `service.QilingService` can expose report methods at MVP stage because 
 | `conversation_messages` | Evidence snippets and recent customer phrasing. |
 | `customer_memory_facts` | Durable facts after the memory layer is stable. |
 | `saved_reports` | Persisted structured report JSON, Markdown, owner scope, summary counts, and generated time. |
+| `report_export_tasks` | Persistent export task records, owner scope, output metadata, status, and error details. |
 
 MVP uses customers and follow-up tasks first, with room to add AgentRun and conversation evidence in the next iteration.
 
@@ -100,6 +101,34 @@ The report response still includes Markdown inline so users can copy quickly wit
 Export format decisions live in `service.ExportReport`. HTTP handlers only translate the export result into response headers and body. This keeps DOCX, PDF, and XLSX support out of the routing layer when those formats are added.
 
 Exports are cached in-process by `report_id + generated_at + format`. The cache stores defensive byte copies so callers cannot mutate cached files. This is an MVP optimization for repeated downloads of the same report, especially PDF. It is not a cross-instance cache; production deployments should move hot export artifacts to object storage or a shared cache if multiple backend instances are used.
+
+### Export Task APIs
+
+Export tasks add a durable Agent action record around report exports:
+
+```text
+POST /api/reports/{report_id}/export-tasks
+GET /api/report-export-tasks
+GET /api/report-export-tasks/{task_id}
+```
+
+Request:
+
+```json
+{
+  "format": "pdf"
+}
+```
+
+MVP behavior is synchronous: creating a task calls the existing `ExportReport` path immediately, then saves the task as `completed` or `failed`. This keeps the API shape stable while avoiding premature queue infrastructure. The next backend step is to move execution behind a worker:
+
+| Stage | Behavior |
+|---|---|
+| MVP | HTTP request creates a task, renders export synchronously, stores status and file metadata. |
+| Worker stage | HTTP request stores `queued`; worker renders file; task moves to `completed` or `failed`. |
+| Artifact stage | Export bytes move to object storage; task stores storage key, checksum, and download URL/expiry. |
+
+Task visibility follows the same owner rule as reports. The frontend must list export tasks from the backend instead of deriving task state locally.
 
 ### GET `/api/reports`
 
@@ -190,6 +219,16 @@ LLM report polishing should be added only after deterministic evidence is reliab
 | `generated_at`, `created_at` | Separates business report time from database insert time. |
 
 The important Agent design point: report generation is not only "answer once". It becomes a durable memory artifact that can be reviewed, copied, compared, and exported later. Think of it as saving the meeting minutes after a discussion instead of asking the Agent to remember everything from scratch each time.
+
+`report_export_tasks` stores the operational trace of report export work:
+
+| Column group | Why it exists |
+|---|---|
+| `report_id`, `export_format` | Connects the task to the source report and renderer. |
+| `status`, `error_message` | Makes failed exports reviewable instead of disappearing inside a request error. |
+| `owner_id`, `owner_role` | Keeps task history scoped to the same actor that owns the report. |
+| `filename`, `content_type`, `size_bytes` | Records output metadata without forcing the frontend to inspect file bytes. |
+| `created_at`, `completed_at` | Supports queue latency, retry, and SLA metrics later. |
 
 ## Permission Rules
 

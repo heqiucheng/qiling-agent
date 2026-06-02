@@ -4,13 +4,13 @@ import type { Customer } from "../../types/customer";
 import type { DashboardSummary } from "../../types/dashboard";
 import type { FollowupTask } from "../../types/followup";
 import type { ReviewMetric } from "../../types/review";
-import type { Report, ReportSummary } from "../../types/report";
+import type { Report, ReportExportTask, ReportSummary } from "../../types/report";
 import type { ConfirmUploadResult, UploadConversationResult } from "../../types/upload";
 import type { ConversationMessage } from "../../types/conversation";
 import type { CustomerDetail } from "../../types/customerDetail";
 import type { LongTermMemory, LongTermMemoryFact, MemoryFactCorrectionResult, MemoryFactStatusResult } from "../../types/memory";
 import type { ReviewInsight, ReviewSummary } from "../../types/review";
-import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, LongTermMemoryDto, LongTermMemoryFactDto, MemoryFactCorrectionResultDto, MemoryFactStatusResultDto, MetricDto, PageDto, ReportDto, ReportSummaryDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
+import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, LongTermMemoryDto, LongTermMemoryFactDto, MemoryFactCorrectionResultDto, MemoryFactStatusResultDto, MetricDto, PageDto, ReportDto, ReportExportTaskDto, ReportSummaryDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
 import type { ConfirmUploadResultDto, UploadConversationResultDto } from "./dto";
 
 export function mapCustomer(dto: CustomerDto): Customer {
@@ -233,5 +233,22 @@ export function mapReportSummary(dto: ReportSummaryDto): ReportSummary {
     sectionCount: dto.section_count,
     actionItemCount: dto.action_item_count,
     generatedAt: dto.generated_at
+  };
+}
+
+export function mapReportExportTask(dto: ReportExportTaskDto): ReportExportTask {
+  return {
+    id: dto.id,
+    reportId: dto.report_id,
+    format: dto.format,
+    status: dto.status,
+    ownerId: dto.owner_id,
+    ownerRole: dto.owner_role,
+    filename: dto.filename,
+    contentType: dto.content_type,
+    sizeBytes: dto.size_bytes,
+    error: dto.error,
+    createdAt: dto.created_at,
+    completedAt: dto.completed_at
   };
 }

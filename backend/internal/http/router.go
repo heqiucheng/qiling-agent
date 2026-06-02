@@ -59,7 +59,16 @@ func NewRouterWithRepositoryAgentAndLogger(cfg config.Config, repository store.R
 	mux.HandleFunc("GET /api/followup-tasks", followupTasksHandler.List)
 	mux.HandleFunc("GET /api/review-reports/summary", reviewReportsHandler.Summary)
 	mux.HandleFunc("GET /api/reports", reportsHandler.List)
+	mux.HandleFunc("GET /api/report-export-tasks", reportsHandler.ListExportTasks)
+	mux.HandleFunc("GET /api/report-export-tasks/", reportsHandler.GetExportTask)
 	mux.HandleFunc("POST /api/reports/customer-intent", reportsHandler.CustomerIntent)
+	mux.HandleFunc("POST /api/reports/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/export-tasks") {
+			reportsHandler.CreateExportTask(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
 	mux.HandleFunc("GET /api/reports/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/export") {
 			reportsHandler.Export(w, r)

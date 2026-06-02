@@ -486,6 +486,30 @@ func TestCustomerIntentReportEndpoint(t *testing.T) {
 		t.Fatalf("expected pdf body")
 	}
 
+	exportTaskBody := requestJSONWithHeaders(t, router, http.MethodPost, "/api/reports/"+reportID+"/export-tasks", `{"format":"pdf"}`, http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	exportTask := responseData(t, exportTaskBody)
+	if exportTask["status"] != "completed" {
+		t.Fatalf("expected completed export task, got %#v", exportTask["status"])
+	}
+	taskID := exportTask["id"].(string)
+	taskDetailBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/report-export-tasks/"+taskID, "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	if responseData(t, taskDetailBody)["id"] != taskID {
+		t.Fatalf("expected export task detail %s", taskID)
+	}
+	taskListBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/report-export-tasks", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	if responseData(t, taskListBody)["total"] != float64(1) {
+		t.Fatalf("expected one export task")
+	}
+
 	unsupportedExportBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/reports/"+reportID+"/export?format=pptx", "", http.StatusBadRequest, map[string]string{
 		"X-Qiling-User-ID": "usr_001",
 		"X-Qiling-Role":    "sales",

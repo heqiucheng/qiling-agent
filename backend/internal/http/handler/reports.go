@@ -54,3 +54,32 @@ func (h ReportsHandler) Export(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(export.Body)
 }
+
+func (h ReportsHandler) CreateExportTask(w http.ResponseWriter, r *http.Request) {
+	reportID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/reports/"), "/export-tasks")
+	var req service.CreateReportExportTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpx.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "请求 JSON 格式不正确", nil)
+		return
+	}
+	task, err := h.Service.CreateReportExportTask(reportID, req, httpx.ActorFromRequest(r))
+	if err != nil {
+		WriteServiceError(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, r, http.StatusOK, task)
+}
+
+func (h ReportsHandler) ListExportTasks(w http.ResponseWriter, r *http.Request) {
+	httpx.WriteJSON(w, r, http.StatusOK, h.Service.ReportExportTasks(r, httpx.ActorFromRequest(r)))
+}
+
+func (h ReportsHandler) GetExportTask(w http.ResponseWriter, r *http.Request) {
+	taskID := strings.TrimPrefix(r.URL.Path, "/api/report-export-tasks/")
+	task, err := h.Service.ReportExportTask(taskID, httpx.ActorFromRequest(r))
+	if err != nil {
+		WriteServiceError(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, r, http.StatusOK, task)
+}

@@ -54,3 +54,18 @@ export interface ReportSummary {
   actionItemCount: number;
   generatedAt: string;
 }
+
+export interface ReportExportTask {
+  id: string;
+  reportId: string;
+  format: string;
+  status: "queued" | "completed" | "failed";
+  ownerId: string;
+  ownerRole: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  error: string;
+  createdAt: string;
+  completedAt: string;
+}

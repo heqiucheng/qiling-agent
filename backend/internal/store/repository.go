@@ -73,6 +73,11 @@ type ReportPage struct {
 	Total int
 }
 
+type ReportExportTaskPage struct {
+	Items []domain.ReportExportTask
+	Total int
+}
+
 func reportSummary(report domain.Report) domain.ReportSummary {
 	return domain.ReportSummary{
 		ID:              report.ID,
@@ -114,6 +119,9 @@ type Repository interface {
 	SaveReport(report domain.Report) (domain.Report, error)
 	Report(id string) (domain.Report, bool)
 	ReportPage(ownerID string, ownerRole string, page PageRequest) ReportPage
+	SaveReportExportTask(task domain.ReportExportTask) (domain.ReportExportTask, error)
+	ReportExportTask(id string) (domain.ReportExportTask, bool)
+	ReportExportTaskPage(ownerID string, ownerRole string, page PageRequest) ReportExportTaskPage
 	CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error)
 	AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage
 }

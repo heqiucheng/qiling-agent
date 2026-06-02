@@ -13,15 +13,16 @@ import (
 )
 
 type MockStore struct {
-	mu        sync.Mutex
-	nextID    int
-	uploads   map[string]domain.UploadRecord
-	customers []domain.Customer
-	tasks     []domain.FollowupTask
-	audit     []domain.AuditEvent
-	runs      map[string]domain.AgentRun
-	facts     map[string]domain.LongTermMemoryFact
-	reports   map[string]domain.Report
+	mu          sync.Mutex
+	nextID      int
+	uploads     map[string]domain.UploadRecord
+	customers   []domain.Customer
+	tasks       []domain.FollowupTask
+	audit       []domain.AuditEvent
+	runs        map[string]domain.AgentRun
+	facts       map[string]domain.LongTermMemoryFact
+	reports     map[string]domain.Report
+	exportTasks map[string]domain.ReportExportTask
 }
 
 func NewMockStore() *MockStore {
@@ -71,13 +72,14 @@ func NewMockStore() *MockStore {
 	}
 
 	return &MockStore{
-		nextID:    4,
-		uploads:   map[string]domain.UploadRecord{},
-		customers: customers,
-		audit:     []domain.AuditEvent{},
-		runs:      map[string]domain.AgentRun{},
-		facts:     map[string]domain.LongTermMemoryFact{},
-		reports:   map[string]domain.Report{},
+		nextID:      4,
+		uploads:     map[string]domain.UploadRecord{},
+		customers:   customers,
+		audit:       []domain.AuditEvent{},
+		runs:        map[string]domain.AgentRun{},
+		facts:       map[string]domain.LongTermMemoryFact{},
+		reports:     map[string]domain.Report{},
+		exportTasks: map[string]domain.ReportExportTask{},
 		tasks: []domain.FollowupTask{
 			newTask("task_001", customers[0], "price_objection", "2026-05-28T10:00:00Z", domain.AgentRecommendation{
 				CustomerStage:     domain.StagePriceObjection,
@@ -582,6 +584,49 @@ func (s *MockStore) ReportPage(ownerID string, ownerRole string, page PageReques
 	})
 
 	return ReportPage{Items: paginate(reports, page), Total: len(reports)}
+}
+
+func (s *MockStore) SaveReportExportTask(task domain.ReportExportTask) (domain.ReportExportTask, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if task.ID == "" {
+		task.ID = fmt.Sprintf("rex_%03d", s.nextID)
+		s.nextID++
+	}
+	if task.CreatedAt == "" {
+		task.CreatedAt = "2026-05-28T10:45:00Z"
+	}
+	s.exportTasks[task.ID] = task
+	return task, nil
+}
+
+func (s *MockStore) ReportExportTask(id string) (domain.ReportExportTask, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	task, ok := s.exportTasks[id]
+	return task, ok
+}
+
+func (s *MockStore) ReportExportTaskPage(ownerID string, ownerRole string, page PageRequest) ReportExportTaskPage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tasks := make([]domain.ReportExportTask, 0)
+	for _, task := range s.exportTasks {
+		if task.OwnerID != ownerID || task.OwnerRole != ownerRole {
+			continue
+		}
+		tasks = append(tasks, task)
+	}
+	sort.SliceStable(tasks, func(i, j int) bool {
+		if tasks[i].CreatedAt == tasks[j].CreatedAt {
+			return tasks[i].ID > tasks[j].ID
+		}
+		return tasks[i].CreatedAt > tasks[j].CreatedAt
+	})
+	return ReportExportTaskPage{Items: paginate(tasks, page), Total: len(tasks)}
 }
 
 func (s *MockStore) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {

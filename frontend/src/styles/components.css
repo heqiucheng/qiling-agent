@@ -400,7 +400,8 @@
 .report-section,
 .report-customer-list,
 .report-action-list,
-.report-actions {
+.report-actions,
+.report-export-tasks {
   display: grid;
   gap: var(--space-4);
 }
@@ -521,6 +522,71 @@
 
 .report-action small {
   color: var(--color-text-tertiary);
+}
+
+.report-export-task {
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.report-export-task strong,
+.report-export-task-list__item strong {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+}
+
+.report-export-task small,
+.report-export-task p,
+.report-export-tasks__empty,
+.report-export-task-list__item small {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+.report-export-task__status,
+.report-export-task-list__item span {
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+  justify-self: start;
+  padding: var(--space-1) var(--space-2);
+}
+
+.report-export-task__status--completed {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.report-export-task__status--failed {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.report-export-task__status--queued {
+  background: rgba(14, 116, 144, 0.12);
+  color: #0e7490;
+}
+
+.report-export-task-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.report-export-task-list__item {
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+}
+
+.report-export-task-list__item span {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
 }
 
 @media (max-width: 720px) {

@@ -376,3 +376,26 @@ type ReportActionItem struct {
 	Action       string `json:"action"`
 	DueHint      string `json:"due_hint"`
 }
+
+type ReportExportTaskStatus string
+
+const (
+	ReportExportQueued    ReportExportTaskStatus = "queued"
+	ReportExportCompleted ReportExportTaskStatus = "completed"
+	ReportExportFailed    ReportExportTaskStatus = "failed"
+)
+
+type ReportExportTask struct {
+	ID          string                 `json:"id"`
+	ReportID    string                 `json:"report_id"`
+	Format      string                 `json:"format"`
+	Status      ReportExportTaskStatus `json:"status"`
+	OwnerID     string                 `json:"owner_id"`
+	OwnerRole   string                 `json:"owner_role"`
+	Filename    string                 `json:"filename"`
+	ContentType string                 `json:"content_type"`
+	SizeBytes   int                    `json:"size_bytes"`
+	Error       string                 `json:"error"`
+	CreatedAt   string                 `json:"created_at"`
+	CompletedAt string                 `json:"completed_at"`
+}

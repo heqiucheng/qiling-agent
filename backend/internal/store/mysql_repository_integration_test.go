@@ -324,6 +324,50 @@ func TestMySQLRepositorySavesAndListsReports(t *testing.T) {
 	}
 }
 
+func TestMySQLRepositorySavesAndListsReportExportTasks(t *testing.T) {
+	repository := integrationRepository(t)
+	task := domain.ReportExportTask{
+		ID:          "rex_test_001",
+		ReportID:    "rpt_test_001",
+		Format:      "pdf",
+		Status:      domain.ReportExportCompleted,
+		OwnerID:     "usr_001",
+		OwnerRole:   "sales",
+		Filename:    "rpt_test_001.pdf",
+		ContentType: "application/pdf",
+		SizeBytes:   2048,
+		CreatedAt:   "2026-06-02T10:00:00Z",
+		CompletedAt: "2026-06-02T10:00:01Z",
+	}
+
+	saved, err := repository.SaveReportExportTask(task)
+	if err != nil {
+		t.Fatalf("save report export task: %v", err)
+	}
+	if saved.ID != task.ID {
+		t.Fatalf("expected saved task id %s, got %s", task.ID, saved.ID)
+	}
+
+	loaded, ok := repository.ReportExportTask(task.ID)
+	if !ok {
+		t.Fatalf("expected report export task %s", task.ID)
+	}
+	if loaded.Status != domain.ReportExportCompleted {
+		t.Fatalf("expected completed task, got %s", loaded.Status)
+	}
+	if loaded.Filename != task.Filename || loaded.SizeBytes != task.SizeBytes {
+		t.Fatalf("unexpected loaded export task: %#v", loaded)
+	}
+
+	page := repository.ReportExportTaskPage("usr_001", "sales", PageRequest{Page: 1, PageSize: 10})
+	if page.Total != 1 || len(page.Items) != 1 {
+		t.Fatalf("expected one report export task, got total=%d len=%d", page.Total, len(page.Items))
+	}
+	if page.Items[0].ID != task.ID {
+		t.Fatalf("expected task %s, got %s", task.ID, page.Items[0].ID)
+	}
+}
+
 func TestMySQLRepositoryUpsertsLongTermMemoryFacts(t *testing.T) {
 	repository := integrationRepository(t)
 

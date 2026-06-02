@@ -249,3 +249,18 @@ export interface ReportSummaryDto {
   action_item_count: number;
   generated_at: string;
 }
+
+export interface ReportExportTaskDto {
+  id: string;
+  report_id: string;
+  format: string;
+  status: "queued" | "completed" | "failed";
+  owner_id: string;
+  owner_role: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  error: string;
+  created_at: string;
+  completed_at: string;
+}

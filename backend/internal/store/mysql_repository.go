@@ -685,6 +685,87 @@ func (r *MySQLRepository) ReportPage(ownerID string, ownerRole string, page Page
 	return ReportPage{Items: scanReportSummaries(rows), Total: total}
 }
 
+func (r *MySQLRepository) SaveReportExportTask(task domain.ReportExportTask) (domain.ReportExportTask, error) {
+	now := time.Now().UTC()
+	if task.ID == "" {
+		task.ID = makeID("rex", now)
+	}
+	if task.CreatedAt == "" {
+		task.CreatedAt = formatTime(now)
+	}
+	createdAt, err := time.Parse(time.RFC3339, task.CreatedAt)
+	if err != nil {
+		createdAt = now
+		task.CreatedAt = formatTime(now)
+	}
+	var completedAt any
+	if strings.TrimSpace(task.CompletedAt) != "" {
+		parsed, err := time.Parse(time.RFC3339, task.CompletedAt)
+		if err == nil {
+			completedAt = parsed
+		}
+	}
+	_, err = r.db.Exec(`
+		INSERT INTO report_export_tasks (
+		  id, report_id, export_format, status, owner_id, owner_role,
+		  filename, content_type, size_bytes, error_message, created_at, completed_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		  report_id = VALUES(report_id),
+		  export_format = VALUES(export_format),
+		  status = VALUES(status),
+		  owner_id = VALUES(owner_id),
+		  owner_role = VALUES(owner_role),
+		  filename = VALUES(filename),
+		  content_type = VALUES(content_type),
+		  size_bytes = VALUES(size_bytes),
+		  error_message = VALUES(error_message),
+		  completed_at = VALUES(completed_at)
+	`, task.ID, task.ReportID, task.Format, task.Status, task.OwnerID, task.OwnerRole, task.Filename, task.ContentType, task.SizeBytes, nullIfEmpty(task.Error), createdAt, completedAt)
+	if err != nil {
+		return domain.ReportExportTask{}, err
+	}
+	return task, nil
+}
+
+func (r *MySQLRepository) ReportExportTask(id string) (domain.ReportExportTask, bool) {
+	rows, err := r.db.Query(`
+		SELECT id, report_id, export_format, status, owner_id, owner_role,
+		       filename, content_type, size_bytes, error_message, created_at, completed_at
+		FROM report_export_tasks
+		WHERE id = ?
+	`, id)
+	if err != nil {
+		return domain.ReportExportTask{}, false
+	}
+	defer rows.Close()
+
+	tasks := scanReportExportTasks(rows)
+	if len(tasks) == 0 {
+		return domain.ReportExportTask{}, false
+	}
+	return tasks[0], true
+}
+
+func (r *MySQLRepository) ReportExportTaskPage(ownerID string, ownerRole string, page PageRequest) ReportExportTaskPage {
+	total := countRows(r.db, "SELECT COUNT(*) FROM report_export_tasks WHERE owner_id = ? AND owner_role = ?", []any{ownerID, ownerRole})
+	rows, err := r.db.Query(`
+		SELECT id, report_id, export_format, status, owner_id, owner_role,
+		       filename, content_type, size_bytes, error_message, created_at, completed_at
+		FROM report_export_tasks
+		WHERE owner_id = ? AND owner_role = ?
+		ORDER BY created_at DESC, id DESC
+		LIMIT ? OFFSET ?
+	`, ownerID, ownerRole, page.PageSize, pageOffset(page))
+	if err != nil {
+		return ReportExportTaskPage{Items: []domain.ReportExportTask{}, Total: 0}
+	}
+	defer rows.Close()
+
+	return ReportExportTaskPage{Items: scanReportExportTasks(rows), Total: total}
+}
+
 func (r *MySQLRepository) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
 	now := time.Now().UTC()
 	if event.ID == "" {
@@ -1009,6 +1090,46 @@ func scanReportSummaries(rows *sql.Rows) []domain.ReportSummary {
 		return []domain.ReportSummary{}
 	}
 	return reports
+}
+
+func scanReportExportTasks(rows *sql.Rows) []domain.ReportExportTask {
+	tasks := make([]domain.ReportExportTask, 0)
+	for rows.Next() {
+		var task domain.ReportExportTask
+		var status string
+		var errorMessage sql.NullString
+		var createdAt time.Time
+		var completedAt sql.NullTime
+		if err := rows.Scan(
+			&task.ID,
+			&task.ReportID,
+			&task.Format,
+			&status,
+			&task.OwnerID,
+			&task.OwnerRole,
+			&task.Filename,
+			&task.ContentType,
+			&task.SizeBytes,
+			&errorMessage,
+			&createdAt,
+			&completedAt,
+		); err != nil {
+			return []domain.ReportExportTask{}
+		}
+		task.Status = domain.ReportExportTaskStatus(status)
+		if errorMessage.Valid {
+			task.Error = errorMessage.String
+		}
+		task.CreatedAt = formatTime(createdAt)
+		if completedAt.Valid {
+			task.CompletedAt = formatTime(completedAt.Time)
+		}
+		tasks = append(tasks, task)
+	}
+	if err := rows.Err(); err != nil {
+		return []domain.ReportExportTask{}
+	}
+	return tasks
 }
 
 func decodeReport(raw []byte) (domain.Report, error) {

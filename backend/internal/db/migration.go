@@ -8,6 +8,7 @@ import (
 )
 
 var ResetTables = []string{
+	"report_export_tasks",
 	"saved_reports",
 	"customer_memory_facts",
 	"audit_events",

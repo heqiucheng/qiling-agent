@@ -1,27 +1,37 @@
-import { Copy, Download, FileSpreadsheet, FileText, FileType, RefreshCw } from "lucide-react";
+import { ClipboardList, Copy, Download, FileSpreadsheet, FileText, FileType, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { MetricCard } from "../../components/ui/MetricCard";
-import { exportReportDOCX, exportReportMarkdown, exportReportPDF, exportReportXLSX, generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
+import { createReportExportTask, exportReportDOCX, exportReportMarkdown, exportReportPDF, exportReportXLSX, generateCustomerIntentReport, getReport, getReportExportTasks, getReports } from "../../lib/api/reports";
 import { copyText } from "../../lib/clipboard";
 import { downloadBlob, downloadTextFile } from "../../lib/download";
-import type { Report, ReportSummary } from "../../types/report";
+import type { Report, ReportExportTask, ReportSummary } from "../../types/report";
 import { useAuth } from "../auth/use-auth";
 
 export function ReportCenterPage() {
   const { user } = useAuth();
   const [report, setReport] = useState<Report | null>(null);
   const [history, setHistory] = useState<ReportSummary[]>([]);
+  const [exportTasks, setExportTasks] = useState<ReportExportTask[]>([]);
+  const [latestExportTask, setLatestExportTask] = useState<ReportExportTask | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<"markdown" | "xlsx" | "docx" | "pdf" | null>(null);
+  const [isCreatingExportTask, setIsCreatingExportTask] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [status, setStatus] = useState("");
 
   async function refreshHistory() {
     const result = await getReports();
     setHistory(result.items);
+    return result.items;
+  }
+
+  async function refreshExportTasks() {
+    const result = await getReportExportTasks();
+    setExportTasks(result.items);
+    setLatestExportTask(result.items[0] ?? null);
     return result.items;
   }
 
@@ -130,17 +140,38 @@ export function ReportCenterPage() {
     }
   }
 
+  async function createPDFExportTask() {
+    if (!report) {
+      return;
+    }
+    setIsCreatingExportTask(true);
+    setStatus("");
+    try {
+      const task = await createReportExportTask(report.id, "pdf");
+      setLatestExportTask(task);
+      await refreshExportTasks();
+      setStatus(task.status === "completed" ? "PDF 导出任务已完成" : "PDF 导出任务失败，请查看任务记录");
+    } catch {
+      setStatus("PDF 导出任务创建失败，请稍后重试");
+    } finally {
+      setIsCreatingExportTask(false);
+    }
+  }
+
   useEffect(() => {
     let active = true;
 
-    void getReports()
+    void Promise.all([getReports(), getReportExportTasks()])
       .then(async (result) => {
         if (!active) {
           return;
         }
-        setHistory(result.items);
-        if (result.items[0]) {
-          const latest = await getReport(result.items[0].id);
+        const [reportsResult, exportTasksResult] = result;
+        setHistory(reportsResult.items);
+        setExportTasks(exportTasksResult.items);
+        setLatestExportTask(exportTasksResult.items[0] ?? null);
+        if (reportsResult.items[0]) {
+          const latest = await getReport(reportsResult.items[0].id);
           if (active) {
             setReport(latest);
           }
@@ -150,6 +181,7 @@ export function ReportCenterPage() {
         if (active) {
           setReport(generated);
           await refreshHistory();
+          await refreshExportTasks();
           setStatus("报告已生成");
         }
       })
@@ -201,6 +233,10 @@ export function ReportCenterPage() {
           <Button variant="secondary" onClick={downloadPDF} disabled={!report || exportingFormat !== null}>
             <FileText size={16} aria-hidden="true" />
             {exportingFormat === "pdf" ? "下载中" : "下载 PDF"}
+          </Button>
+          <Button variant="secondary" onClick={createPDFExportTask} disabled={!report || isCreatingExportTask}>
+            <ClipboardList size={16} aria-hidden="true" />
+            {isCreatingExportTask ? "任务生成中" : "创建 PDF 任务"}
           </Button>
         </div>
       </header>
@@ -297,6 +333,36 @@ export function ReportCenterPage() {
                   ))}
                 </div>
               </Card>
+
+              <Card className="report-export-tasks">
+                <div className="report-history__header">
+                  <h2>导出任务</h2>
+                  <span>{exportTasks.length} 条</span>
+                </div>
+                {latestExportTask ? (
+                  <div className="report-export-task">
+                    <span className={`report-export-task__status report-export-task__status--${latestExportTask.status}`}>
+                      {reportExportTaskStatusLabel(latestExportTask.status)}
+                    </span>
+                    <strong>{latestExportTask.filename || `${latestExportTask.format.toUpperCase()} 导出任务`}</strong>
+                    <small>
+                      {latestExportTask.format.toUpperCase()} / {formatBytes(latestExportTask.sizeBytes)} / {new Date(latestExportTask.createdAt).toLocaleString()}
+                    </small>
+                    {latestExportTask.error ? <p>{latestExportTask.error}</p> : null}
+                  </div>
+                ) : (
+                  <p className="report-export-tasks__empty">暂无导出任务</p>
+                )}
+                <div className="report-export-task-list">
+                  {exportTasks.slice(0, 5).map((task) => (
+                    <div key={task.id} className="report-export-task-list__item">
+                      <span>{reportExportTaskStatusLabel(task.status)}</span>
+                      <strong>{task.filename || task.id}</strong>
+                      <small>{new Date(task.createdAt).toLocaleString()}</small>
+                    </div>
+                  ))}
+                </div>
+              </Card>
             </aside>
           </div>
         </div>
@@ -308,4 +374,27 @@ export function ReportCenterPage() {
       )}
     </section>
   );
+}
+
+function reportExportTaskStatusLabel(status: ReportExportTask["status"]): string {
+  switch (status) {
+    case "completed":
+      return "已完成";
+    case "failed":
+      return "失败";
+    case "queued":
+      return "排队中";
+    default:
+      return status;
+  }
+}
+
+function formatBytes(value: number): string {
+  if (value <= 0) {
+    return "0 KB";
+  }
+  if (value < 1024 * 1024) {
+    return `${Math.ceil(value / 1024)} KB`;
+  }
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }

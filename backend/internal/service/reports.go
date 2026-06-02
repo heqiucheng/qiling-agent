@@ -21,6 +21,10 @@ type ReportExport struct {
 	Body        []byte
 }
 
+type CreateReportExportTaskRequest struct {
+	Format string `json:"format"`
+}
+
 func (s *QilingService) CustomerIntentReport(req CustomerIntentReportRequest, actor domain.Actor) (domain.Report, error) {
 	customers := visibleCustomers(s.store.Customers(), actor)
 	tasks := visibleTasks(s.store.FollowupTasks(), actor)
@@ -122,6 +126,56 @@ func (s *QilingService) ExportReport(reportID string, format string, actor domai
 		return ReportExport{}, err
 	}
 	return s.exportCache.Set(cacheKey, export), nil
+}
+
+func (s *QilingService) CreateReportExportTask(reportID string, req CreateReportExportTaskRequest, actor domain.Actor) (domain.ReportExportTask, error) {
+	report, err := s.Report(reportID, actor)
+	if err != nil {
+		return domain.ReportExportTask{}, err
+	}
+	format := strings.ToLower(strings.TrimSpace(req.Format))
+	if format == "" {
+		format = "pdf"
+	}
+	now := time.Now().UTC()
+	task := domain.ReportExportTask{
+		ID:        "rex_" + now.Format("20060102150405") + fmt.Sprintf("_%09d", now.Nanosecond()),
+		ReportID:  report.ID,
+		Format:    format,
+		Status:    domain.ReportExportQueued,
+		OwnerID:   actor.UserID,
+		OwnerRole: actor.Role,
+		CreatedAt: now.Format(time.RFC3339),
+	}
+	export, err := s.ExportReport(reportID, format, actor)
+	if err != nil {
+		task.Status = domain.ReportExportFailed
+		task.Error = err.Error()
+		return s.store.SaveReportExportTask(task)
+	}
+	task.Status = domain.ReportExportCompleted
+	task.Filename = export.Filename
+	task.ContentType = export.ContentType
+	task.SizeBytes = len(export.Body)
+	task.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+	return s.store.SaveReportExportTask(task)
+}
+
+func (s *QilingService) ReportExportTask(taskID string, actor domain.Actor) (domain.ReportExportTask, error) {
+	task, ok := s.store.ReportExportTask(taskID)
+	if !ok {
+		return domain.ReportExportTask{}, apperror.New("NOT_FOUND", "导出任务不存在", map[string]any{"task_id": taskID})
+	}
+	if task.OwnerID != actor.UserID || task.OwnerRole != actor.Role {
+		return domain.ReportExportTask{}, apperror.New("FORBIDDEN", "无权查看该导出任务", map[string]any{"task_id": taskID})
+	}
+	return task, nil
+}
+
+func (s *QilingService) ReportExportTasks(r *http.Request, actor domain.Actor) PageResult[domain.ReportExportTask] {
+	page := PageRequestFromQuery(r)
+	result := s.store.ReportExportTaskPage(actor.UserID, actor.Role, store.PageRequest{Page: page.Page, PageSize: page.PageSize})
+	return NewPageResultWithTotal(result.Items, page, result.Total)
 }
 
 func renderReportExport(report domain.Report, format string) (ReportExport, error) {
