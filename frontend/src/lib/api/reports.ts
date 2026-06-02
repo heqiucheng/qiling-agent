@@ -26,3 +26,7 @@ export async function exportReportMarkdown(reportId: string): Promise<string> {
 export async function exportReportXLSX(reportId: string): Promise<Blob> {
   return apiGetBlob(`/api/reports/${reportId}/export?format=xlsx`);
 }
+
+export async function exportReportDOCX(reportId: string): Promise<Blob> {
+  return apiGetBlob(`/api/reports/${reportId}/export?format=docx`);
+}

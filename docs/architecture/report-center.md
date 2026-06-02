@@ -79,7 +79,7 @@ Deferred. Preview can later return the current default report without creating a
 
 ### Export APIs
 
-Markdown and XLSX exports are implemented. DOCX and PDF are deferred until report schema and visual layout are stable:
+Markdown, XLSX, and DOCX exports are implemented. PDF is deferred until report schema and visual layout are stable:
 
 ```text
 GET /api/reports/{report_id}/export?format=markdown
@@ -258,7 +258,7 @@ Frontend:
 |---|---|
 | Markdown | Implemented as `GET /api/reports/{report_id}/export?format=markdown`. |
 | XLSX | Implemented as `GET /api/reports/{report_id}/export?format=xlsx`, with sheets for summary metrics, action items, and customer details. |
-| DOCX | Generate from structured sections, then render-check document layout. |
+| DOCX | Implemented as `GET /api/reports/{report_id}/export?format=docx`, with title, summary, metrics, customer analysis, and action items. |
 | PDF | Use HTML print or server-side renderer after layout is stable. |
 
 The XLSX workbook is intentionally table-first instead of visually heavy. It is meant for operations review: leaders scan metrics, sales users execute action items, and analysts inspect customer evidence.

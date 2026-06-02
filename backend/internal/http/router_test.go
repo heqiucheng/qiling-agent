@@ -450,6 +450,24 @@ func TestCustomerIntentReportEndpoint(t *testing.T) {
 		t.Fatalf("expected xlsx zip body")
 	}
 
+	docxReq := httptest.NewRequest(http.MethodGet, "/api/reports/"+reportID+"/export?format=docx", nil)
+	docxReq.Header.Set("X-Qiling-User-ID", "usr_001")
+	docxReq.Header.Set("X-Qiling-Role", "sales")
+	docxRec := httptest.NewRecorder()
+	router.ServeHTTP(docxRec, docxReq)
+	if docxRec.Code != http.StatusOK {
+		t.Fatalf("expected docx export 200, got %d body=%s", docxRec.Code, docxRec.Body.String())
+	}
+	if !strings.Contains(docxRec.Header().Get("Content-Type"), "wordprocessingml.document") {
+		t.Fatalf("expected docx content type, got %s", docxRec.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(docxRec.Header().Get("Content-Disposition"), reportID+".docx") {
+		t.Fatalf("expected docx filename, got %s", docxRec.Header().Get("Content-Disposition"))
+	}
+	if !strings.HasPrefix(docxRec.Body.String(), "PK") {
+		t.Fatalf("expected docx zip body")
+	}
+
 	unsupportedExportBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/reports/"+reportID+"/export?format=pdf", "", http.StatusBadRequest, map[string]string{
 		"X-Qiling-User-ID": "usr_001",
 		"X-Qiling-Role":    "sales",

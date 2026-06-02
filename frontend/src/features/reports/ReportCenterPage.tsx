@@ -1,10 +1,10 @@
-import { Copy, Download, FileSpreadsheet, FileText, RefreshCw } from "lucide-react";
+import { Copy, Download, FileSpreadsheet, FileText, FileType, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { MetricCard } from "../../components/ui/MetricCard";
-import { exportReportMarkdown, exportReportXLSX, generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
+import { exportReportDOCX, exportReportMarkdown, exportReportXLSX, generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
 import { copyText } from "../../lib/clipboard";
 import { downloadBlob, downloadTextFile } from "../../lib/download";
 import type { Report, ReportSummary } from "../../types/report";
@@ -15,7 +15,7 @@ export function ReportCenterPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [history, setHistory] = useState<ReportSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [exportingFormat, setExportingFormat] = useState<"markdown" | "xlsx" | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<"markdown" | "xlsx" | "docx" | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [status, setStatus] = useState("");
 
@@ -96,6 +96,23 @@ export function ReportCenterPage() {
     }
   }
 
+  async function downloadWord() {
+    if (!report) {
+      return;
+    }
+    setExportingFormat("docx");
+    setStatus("");
+    try {
+      const document = await exportReportDOCX(report.id);
+      downloadBlob(`${report.title}-${report.id}.docx`, document);
+      setStatus("Word 报告已下载");
+    } catch {
+      setStatus("Word 报告下载失败，请稍后重试");
+    } finally {
+      setExportingFormat(null);
+    }
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -159,6 +176,10 @@ export function ReportCenterPage() {
           <Button variant="secondary" onClick={downloadExcel} disabled={!report || exportingFormat !== null}>
             <FileSpreadsheet size={16} aria-hidden="true" />
             {exportingFormat === "xlsx" ? "下载中" : "下载 Excel"}
+          </Button>
+          <Button variant="secondary" onClick={downloadWord} disabled={!report || exportingFormat !== null}>
+            <FileType size={16} aria-hidden="true" />
+            {exportingFormat === "docx" ? "下载中" : "下载 Word"}
           </Button>
         </div>
       </header>
