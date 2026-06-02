@@ -431,6 +431,14 @@ func TestCustomerIntentReportEndpoint(t *testing.T) {
 	if !strings.Contains(exportRec.Body.String(), "#") {
 		t.Fatalf("expected markdown body, got %s", exportRec.Body.String())
 	}
+
+	unsupportedExportBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/reports/"+reportID+"/export?format=pdf", "", http.StatusBadRequest, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	if unsupportedExportBody.Error == nil || unsupportedExportBody.Error.Code != "UNSUPPORTED_EXPORT_FORMAT" {
+		t.Fatalf("expected unsupported export format error, got %#v", unsupportedExportBody.Error)
+	}
 }
 
 func TestCustomerIntentReportRespectsSalesVisibility(t *testing.T) {

@@ -15,6 +15,12 @@ type CustomerIntentReportRequest struct {
 	Range string `json:"range"`
 }
 
+type ReportExport struct {
+	Filename    string
+	ContentType string
+	Body        []byte
+}
+
 func (s *QilingService) CustomerIntentReport(req CustomerIntentReportRequest, actor domain.Actor) (domain.Report, error) {
 	customers := visibleCustomers(s.store.Customers(), actor)
 	tasks := visibleTasks(s.store.FollowupTasks(), actor)
@@ -96,6 +102,36 @@ func (s *QilingService) Report(reportID string, actor domain.Actor) (domain.Repo
 		return domain.Report{}, apperror.New("FORBIDDEN", "无权查看该报告", map[string]any{"report_id": reportID})
 	}
 	return report, nil
+}
+
+func (s *QilingService) ExportReport(reportID string, format string, actor domain.Actor) (ReportExport, error) {
+	report, err := s.Report(reportID, actor)
+	if err != nil {
+		return ReportExport{}, err
+	}
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format == "" {
+		format = "markdown"
+	}
+	switch format {
+	case "markdown":
+		return ReportExport{
+			Filename:    safeReportExportFilename(report.ID) + ".md",
+			ContentType: "text/markdown; charset=utf-8",
+			Body:        []byte(report.Markdown),
+		}, nil
+	default:
+		return ReportExport{}, apperror.New("UNSUPPORTED_EXPORT_FORMAT", "暂不支持该报告导出格式", map[string]any{"format": format})
+	}
+}
+
+func safeReportExportFilename(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "report"
+	}
+	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "_", "*", "_", "?", "_", `"`, "_", "<", "_", ">", "_", "|", "_")
+	return replacer.Replace(value)
 }
 
 func latestTaskByCustomer(tasks []domain.FollowupTask) map[string]domain.FollowupTask {

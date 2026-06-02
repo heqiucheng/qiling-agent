@@ -97,6 +97,8 @@ GET /api/reports/{report_id}/export?format=xlsx
 
 The report response still includes Markdown inline so users can copy quickly without downloading.
 
+Export format decisions live in `service.ExportReport`. HTTP handlers only translate the export result into response headers and body. This keeps DOCX, PDF, and XLSX support out of the routing layer when those formats are added.
+
 ### GET `/api/reports`
 
 Lists persisted reports visible to the current actor. The backend filters by `owner_id` and `owner_role`; the frontend must not request broad report history and filter it locally.

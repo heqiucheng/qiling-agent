@@ -19,7 +19,7 @@ func WriteServiceError(w http.ResponseWriter, r *http.Request, err error) {
 
 func statusForCode(code string) int {
 	switch code {
-	case "VALIDATION_ERROR", "EMPTY_CONTENT", "UNSUPPORTED_UPLOAD_TYPE":
+	case "VALIDATION_ERROR", "EMPTY_CONTENT", "UNSUPPORTED_UPLOAD_TYPE", "UNSUPPORTED_EXPORT_FORMAT":
 		return http.StatusBadRequest
 	case "UNAUTHORIZED":
 		return http.StatusUnauthorized
