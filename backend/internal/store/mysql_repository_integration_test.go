@@ -276,6 +276,54 @@ func TestMySQLRepositoryAgentRunsByCustomer(t *testing.T) {
 	}
 }
 
+func TestMySQLRepositorySavesAndListsReports(t *testing.T) {
+	repository := integrationRepository(t)
+	report := domain.Report{
+		ID:         "rpt_test_001",
+		Type:       domain.ReportCustomerIntent,
+		Title:      "最近 7 天客户意愿分析报告",
+		RangeLabel: "最近 7 天",
+		OwnerID:    "usr_001",
+		OwnerRole:  "sales",
+		Summary:    "test summary",
+		Metrics: []domain.Metric{
+			{Key: "customers_total", Label: "分析客户", Value: 1, Hint: "test"},
+		},
+		Sections: []domain.ReportSection{
+			{Title: "高意向客户", Summary: "test", Items: []domain.ReportCustomerItem{}, Evidence: []string{"evidence"}},
+		},
+		ActionItems: []domain.ReportActionItem{
+			{CustomerID: "cus_001", CustomerName: "王女士", Priority: "high", Action: "follow", DueHint: "today"},
+		},
+		Markdown:    "# report",
+		GeneratedAt: "2026-06-02T10:00:00Z",
+	}
+
+	saved, err := repository.SaveReport(report)
+	if err != nil {
+		t.Fatalf("save report: %v", err)
+	}
+	if saved.ID != report.ID {
+		t.Fatalf("expected saved report id %s, got %s", report.ID, saved.ID)
+	}
+
+	loaded, ok := repository.Report(report.ID)
+	if !ok {
+		t.Fatalf("expected report %s", report.ID)
+	}
+	if loaded.Markdown != "# report" {
+		t.Fatalf("expected markdown to round-trip, got %s", loaded.Markdown)
+	}
+
+	page := repository.ReportPage("usr_001", "sales", PageRequest{Page: 1, PageSize: 10})
+	if page.Total != 1 || len(page.Items) != 1 {
+		t.Fatalf("expected one report summary, got total=%d len=%d", page.Total, len(page.Items))
+	}
+	if page.Items[0].ActionItemCount != 1 {
+		t.Fatalf("expected action item count, got %d", page.Items[0].ActionItemCount)
+	}
+}
+
 func TestMySQLRepositoryUpsertsLongTermMemoryFacts(t *testing.T) {
 	repository := integrationRepository(t)
 

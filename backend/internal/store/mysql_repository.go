@@ -607,6 +607,84 @@ func (r *MySQLRepository) CorrectLongTermMemoryFact(customerID string, factID st
 	}, nil
 }
 
+func (r *MySQLRepository) SaveReport(report domain.Report) (domain.Report, error) {
+	now := time.Now().UTC()
+	if report.ID == "" {
+		report.ID = makeID("rpt", now)
+	}
+	if report.GeneratedAt == "" {
+		report.GeneratedAt = formatTime(now)
+	}
+	reportJSON, err := json.Marshal(report)
+	if err != nil {
+		return domain.Report{}, err
+	}
+	generatedAt, err := time.Parse(time.RFC3339, report.GeneratedAt)
+	if err != nil {
+		generatedAt = now
+	}
+	_, err = r.db.Exec(`
+		INSERT INTO saved_reports (
+		  id, report_type, title, range_label, summary, owner_id, owner_role,
+		  metrics_count, sections_count, action_items_count, report_json, markdown,
+		  generated_at, created_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		  report_type = VALUES(report_type),
+		  title = VALUES(title),
+		  range_label = VALUES(range_label),
+		  summary = VALUES(summary),
+		  owner_id = VALUES(owner_id),
+		  owner_role = VALUES(owner_role),
+		  metrics_count = VALUES(metrics_count),
+		  sections_count = VALUES(sections_count),
+		  action_items_count = VALUES(action_items_count),
+		  report_json = VALUES(report_json),
+		  markdown = VALUES(markdown),
+		  generated_at = VALUES(generated_at)
+	`, report.ID, report.Type, report.Title, report.RangeLabel, report.Summary, report.OwnerID, report.OwnerRole,
+		len(report.Metrics), len(report.Sections), len(report.ActionItems), reportJSON, report.Markdown, generatedAt, now)
+	if err != nil {
+		return domain.Report{}, err
+	}
+	return report, nil
+}
+
+func (r *MySQLRepository) Report(id string) (domain.Report, bool) {
+	var reportJSON []byte
+	if err := r.db.QueryRow(`
+		SELECT report_json
+		FROM saved_reports
+		WHERE id = ?
+	`, id).Scan(&reportJSON); err != nil {
+		return domain.Report{}, false
+	}
+	report, err := decodeReport(reportJSON)
+	if err != nil {
+		return domain.Report{}, false
+	}
+	return report, true
+}
+
+func (r *MySQLRepository) ReportPage(ownerID string, ownerRole string, page PageRequest) ReportPage {
+	total := countRows(r.db, "SELECT COUNT(*) FROM saved_reports WHERE owner_id = ? AND owner_role = ?", []any{ownerID, ownerRole})
+	rows, err := r.db.Query(`
+		SELECT id, report_type, title, range_label, summary, owner_id, owner_role,
+		       metrics_count, sections_count, action_items_count, generated_at
+		FROM saved_reports
+		WHERE owner_id = ? AND owner_role = ?
+		ORDER BY generated_at DESC, id DESC
+		LIMIT ? OFFSET ?
+	`, ownerID, ownerRole, page.PageSize, pageOffset(page))
+	if err != nil {
+		return ReportPage{Items: []domain.ReportSummary{}, Total: 0}
+	}
+	defer rows.Close()
+
+	return ReportPage{Items: scanReportSummaries(rows), Total: total}
+}
+
 func (r *MySQLRepository) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
 	now := time.Now().UTC()
 	if event.ID == "" {
@@ -900,6 +978,45 @@ func scanLongTermMemoryFacts(rows *sql.Rows) []domain.LongTermMemoryFact {
 		return []domain.LongTermMemoryFact{}
 	}
 	return facts
+}
+
+func scanReportSummaries(rows *sql.Rows) []domain.ReportSummary {
+	reports := make([]domain.ReportSummary, 0)
+	for rows.Next() {
+		var report domain.ReportSummary
+		var reportType string
+		var generatedAt time.Time
+		if err := rows.Scan(
+			&report.ID,
+			&reportType,
+			&report.Title,
+			&report.RangeLabel,
+			&report.Summary,
+			&report.OwnerID,
+			&report.OwnerRole,
+			&report.MetricCount,
+			&report.SectionCount,
+			&report.ActionItemCount,
+			&generatedAt,
+		); err != nil {
+			return []domain.ReportSummary{}
+		}
+		report.Type = domain.ReportType(reportType)
+		report.GeneratedAt = formatTime(generatedAt)
+		reports = append(reports, report)
+	}
+	if err := rows.Err(); err != nil {
+		return []domain.ReportSummary{}
+	}
+	return reports
+}
+
+func decodeReport(raw []byte) (domain.Report, error) {
+	var report domain.Report
+	if err := json.Unmarshal(raw, &report); err != nil {
+		return domain.Report{}, err
+	}
+	return report, nil
 }
 
 func memoryFactForUpdate(tx *sql.Tx, customerID string, factID string) (domain.LongTermMemoryFact, error) {

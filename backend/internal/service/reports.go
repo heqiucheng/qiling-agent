@@ -2,9 +2,11 @@ package service
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/heqiucheng/qiling-agent/backend/internal/apperror"
 	"github.com/heqiucheng/qiling-agent/backend/internal/domain"
 	"github.com/heqiucheng/qiling-agent/backend/internal/store"
 )
@@ -13,7 +15,7 @@ type CustomerIntentReportRequest struct {
 	Range string `json:"range"`
 }
 
-func (s *QilingService) CustomerIntentReport(req CustomerIntentReportRequest, actor domain.Actor) domain.Report {
+func (s *QilingService) CustomerIntentReport(req CustomerIntentReportRequest, actor domain.Actor) (domain.Report, error) {
 	customers := visibleCustomers(s.store.Customers(), actor)
 	tasks := visibleTasks(s.store.FollowupTasks(), actor)
 	tasksByCustomer := latestTaskByCustomer(tasks)
@@ -55,6 +57,8 @@ func (s *QilingService) CustomerIntentReport(req CustomerIntentReportRequest, ac
 		Type:       domain.ReportCustomerIntent,
 		Title:      rangeLabel + "客户意愿分析报告",
 		RangeLabel: rangeLabel,
+		OwnerID:    actor.UserID,
+		OwnerRole:  actor.Role,
 		Summary: fmt.Sprintf(
 			"本报告共分析 %d 位可见客户，其中高意向 %d 位，待确认 %d 位，风险 %d 位，需要补充信息 %d 位。",
 			len(customers),
@@ -74,7 +78,24 @@ func (s *QilingService) CustomerIntentReport(req CustomerIntentReportRequest, ac
 		GeneratedAt: now.Format(time.RFC3339),
 	}
 	report.Markdown = renderReportMarkdown(report)
-	return report
+	return s.store.SaveReport(report)
+}
+
+func (s *QilingService) Reports(r *http.Request, actor domain.Actor) PageResult[domain.ReportSummary] {
+	page := PageRequestFromQuery(r)
+	result := s.store.ReportPage(actor.UserID, actor.Role, store.PageRequest{Page: page.Page, PageSize: page.PageSize})
+	return NewPageResultWithTotal(result.Items, page, result.Total)
+}
+
+func (s *QilingService) Report(reportID string, actor domain.Actor) (domain.Report, error) {
+	report, ok := s.store.Report(reportID)
+	if !ok {
+		return domain.Report{}, apperror.New("NOT_FOUND", "报告不存在", map[string]any{"report_id": reportID})
+	}
+	if report.OwnerID != actor.UserID || report.OwnerRole != actor.Role {
+		return domain.Report{}, apperror.New("FORBIDDEN", "无权查看该报告", map[string]any{"report_id": reportID})
+	}
+	return report, nil
 }
 
 func latestTaskByCustomer(tasks []domain.FollowupTask) map[string]domain.FollowupTask {

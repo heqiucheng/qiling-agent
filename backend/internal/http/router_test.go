@@ -368,7 +368,8 @@ func TestReviewSummaryEndpoint(t *testing.T) {
 }
 
 func TestCustomerIntentReportEndpoint(t *testing.T) {
-	body := requestJSONWithHeaders(t, NewRouter(config.Config{Addr: ":0", Env: "test"}), http.MethodPost, "/api/reports/customer-intent", `{
+	router := NewRouter(config.Config{Addr: ":0", Env: "test"})
+	body := requestJSONWithHeaders(t, router, http.MethodPost, "/api/reports/customer-intent", `{
 		"range": "last_7_days"
 	}`, http.StatusOK, map[string]string{
 		"X-Qiling-User-ID": "usr_001",
@@ -393,6 +394,24 @@ func TestCustomerIntentReportEndpoint(t *testing.T) {
 	actionItems, ok := data["action_items"].([]any)
 	if !ok || len(actionItems) == 0 {
 		t.Fatalf("expected report action items, got %#v", data["action_items"])
+	}
+
+	reportID := data["id"].(string)
+	detailBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/reports/"+reportID, "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	if responseData(t, detailBody)["id"] != reportID {
+		t.Fatalf("expected report detail %s", reportID)
+	}
+
+	listBody := requestJSONWithHeaders(t, router, http.MethodGet, "/api/reports", "", http.StatusOK, map[string]string{
+		"X-Qiling-User-ID": "usr_001",
+		"X-Qiling-Role":    "sales",
+	})
+	listData := responseData(t, listBody)
+	if listData["total"] != float64(1) {
+		t.Fatalf("expected one saved report, got %#v", listData["total"])
 	}
 }
 

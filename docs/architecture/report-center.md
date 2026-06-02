@@ -3,6 +3,8 @@
 Status: MVP design  
 Date: 2026-06-01
 
+Updated: 2026-06-02 - Report history persistence MVP is implemented.
+
 ## Goal
 
 Report Center turns operational data into structured, shareable reports. It should reuse existing customer visibility, AgentRun, memory, and task data instead of creating a parallel analytics system.
@@ -35,6 +37,7 @@ The main `service.QilingService` can expose report methods at MVP stage because 
 | `agent_runs` | Model reasoning, validation errors, prompt version, risk flags. |
 | `conversation_messages` | Evidence snippets and recent customer phrasing. |
 | `customer_memory_facts` | Durable facts after the memory layer is stable. |
+| `saved_reports` | Persisted structured report JSON, Markdown, owner scope, summary counts, and generated time. |
 
 MVP uses customers and follow-up tasks first, with room to add AgentRun and conversation evidence in the next iteration.
 
@@ -87,6 +90,47 @@ GET /api/reports/{report_id}/export?format=xlsx
 
 MVP returns Markdown inline in the report response.
 
+### GET `/api/reports`
+
+Lists persisted reports visible to the current actor. The backend filters by `owner_id` and `owner_role`; the frontend must not request broad report history and filter it locally.
+
+Response shape:
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": "rpt_customer_intent_20260602",
+        "type": "customer_intent",
+        "title": "最近 7 天客户意愿分析报告",
+        "range_label": "最近 7 天",
+        "summary": "...",
+        "owner_id": "usr_001",
+        "owner_role": "sales",
+        "metric_count": 4,
+        "section_count": 3,
+        "action_item_count": 5,
+        "generated_at": "2026-06-02T09:00:00Z"
+      }
+    ],
+    "page": 1,
+    "page_size": 20,
+    "total": 1
+  },
+  "error": null,
+  "meta": {}
+}
+```
+
+### GET `/api/reports/{report_id}`
+
+Loads the full persisted report, including structured sections and Markdown. The service checks ownership before returning detail:
+
+- sales users can only read reports generated under their own `user_id` and `role`;
+- manager users can read reports generated under their manager actor scope;
+- unauthorized detail reads return `FORBIDDEN`.
+
 ## Report Types
 
 Report response should be structured first and rendered second:
@@ -98,6 +142,8 @@ Report
   Title
   RangeLabel
   Summary
+  OwnerID
+  OwnerRole
   Metrics[]
   Sections[]
   ActionItems[]
@@ -116,8 +162,23 @@ MVP uses deterministic generation from existing structured data:
 3. Attach latest follow-up task recommendation when available.
 4. Build report sections.
 5. Render Markdown from the same structured report.
+6. Save the structured report and Markdown to `saved_reports`.
 
 LLM report polishing should be added only after deterministic evidence is reliable. The model should rewrite wording, not invent facts.
+
+## Persistence Rules
+
+`saved_reports` stores both a query-friendly summary and the full `report_json` payload:
+
+| Column group | Why it exists |
+|---|---|
+| `owner_id`, `owner_role` | Enforces report history visibility without relying on frontend filtering. |
+| `metrics_count`, `sections_count`, `action_items_count` | Keeps report list fast and compact. |
+| `report_json` | Preserves the full structured report for future UI and exporters. |
+| `markdown` | Allows quick copy/export of the exact generated content. |
+| `generated_at`, `created_at` | Separates business report time from database insert time. |
+
+The important Agent design point: report generation is not only "answer once". It becomes a durable memory artifact that can be reviewed, copied, compared, and exported later. Think of it as saving the meeting minutes after a discussion instead of asking the Agent to remember everything from scratch each time.
 
 ## Permission Rules
 
@@ -160,6 +221,7 @@ The page should show:
 
 - report type selector;
 - generate button;
+- persisted report history;
 - metrics strip;
 - report sections;
 - action list;

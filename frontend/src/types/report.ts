@@ -32,9 +32,25 @@ export interface Report {
   title: string;
   rangeLabel: string;
   summary: string;
+  ownerId: string;
+  ownerRole: string;
   metrics: ReviewMetric[];
   sections: ReportSection[];
   actionItems: ReportActionItem[];
   markdown: string;
+  generatedAt: string;
+}
+
+export interface ReportSummary {
+  id: string;
+  type: "customer_intent";
+  title: string;
+  rangeLabel: string;
+  summary: string;
+  ownerId: string;
+  ownerRole: string;
+  metricCount: number;
+  sectionCount: number;
+  actionItemCount: number;
   generatedAt: string;
 }

@@ -227,9 +227,25 @@ export interface ReportDto {
   title: string;
   range_label: string;
   summary: string;
+  owner_id: string;
+  owner_role: string;
   metrics: MetricDto[];
   sections: ReportSectionDto[];
   action_items: ReportActionItemDto[];
   markdown: string;
+  generated_at: string;
+}
+
+export interface ReportSummaryDto {
+  id: string;
+  type: "customer_intent";
+  title: string;
+  range_label: string;
+  summary: string;
+  owner_id: string;
+  owner_role: string;
+  metric_count: number;
+  section_count: number;
+  action_item_count: number;
   generated_at: string;
 }

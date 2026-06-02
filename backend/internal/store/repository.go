@@ -68,6 +68,27 @@ type LongTermMemoryFactPage struct {
 	Total int
 }
 
+type ReportPage struct {
+	Items []domain.ReportSummary
+	Total int
+}
+
+func reportSummary(report domain.Report) domain.ReportSummary {
+	return domain.ReportSummary{
+		ID:              report.ID,
+		Type:            report.Type,
+		Title:           report.Title,
+		RangeLabel:      report.RangeLabel,
+		Summary:         report.Summary,
+		OwnerID:         report.OwnerID,
+		OwnerRole:       report.OwnerRole,
+		MetricCount:     len(report.Metrics),
+		SectionCount:    len(report.Sections),
+		ActionItemCount: len(report.ActionItems),
+		GeneratedAt:     report.GeneratedAt,
+	}
+}
+
 type Repository interface {
 	Customers() []domain.Customer
 	CustomerPage(filter CustomerFilter, page PageRequest) CustomerPage
@@ -90,6 +111,9 @@ type Repository interface {
 	UpsertLongTermMemoryFact(fact domain.LongTermMemoryFact) (domain.LongTermMemoryFact, error)
 	UpdateLongTermMemoryFactStatus(customerID string, factID string, status domain.MemoryFactStatus) (domain.MemoryFactStatusResult, error)
 	CorrectLongTermMemoryFact(customerID string, factID string, corrected domain.LongTermMemoryFact) (domain.MemoryFactCorrectionResult, error)
+	SaveReport(report domain.Report) (domain.Report, error)
+	Report(id string) (domain.Report, bool)
+	ReportPage(ownerID string, ownerRole string, page PageRequest) ReportPage
 	CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error)
 	AuditEventPage(filter AuditEventFilter, page PageRequest) AuditEventPage
 }

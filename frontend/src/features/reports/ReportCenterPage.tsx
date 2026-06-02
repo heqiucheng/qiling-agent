@@ -4,16 +4,24 @@ import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { MetricCard } from "../../components/ui/MetricCard";
-import { generateCustomerIntentReport } from "../../lib/api/reports";
+import { generateCustomerIntentReport, getReport, getReports } from "../../lib/api/reports";
 import { copyText } from "../../lib/clipboard";
-import type { Report } from "../../types/report";
+import type { Report, ReportSummary } from "../../types/report";
 import { useAuth } from "../auth/use-auth";
 
 export function ReportCenterPage() {
   const { user } = useAuth();
   const [report, setReport] = useState<Report | null>(null);
+  const [history, setHistory] = useState<ReportSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [status, setStatus] = useState("");
+
+  async function refreshHistory() {
+    const result = await getReports();
+    setHistory(result.items);
+    return result.items;
+  }
 
   async function generateReport() {
     setIsLoading(true);
@@ -21,11 +29,26 @@ export function ReportCenterPage() {
     try {
       const result = await generateCustomerIntentReport();
       setReport(result);
+      await refreshHistory();
       setStatus("报告已生成");
     } catch {
       setStatus("报告生成失败，请确认后端服务可用");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function openReport(reportId: string) {
+    setIsHistoryLoading(true);
+    setStatus("");
+    try {
+      const result = await getReport(reportId);
+      setReport(result);
+      setStatus("已加载历史报告");
+    } catch {
+      setStatus("历史报告加载失败，请稍后重试");
+    } finally {
+      setIsHistoryLoading(false);
     }
   }
 
@@ -40,10 +63,23 @@ export function ReportCenterPage() {
   useEffect(() => {
     let active = true;
 
-    void generateCustomerIntentReport()
-      .then((result) => {
+    void getReports()
+      .then(async (result) => {
+        if (!active) {
+          return;
+        }
+        setHistory(result.items);
+        if (result.items[0]) {
+          const latest = await getReport(result.items[0].id);
+          if (active) {
+            setReport(latest);
+          }
+          return;
+        }
+        const generated = await generateCustomerIntentReport();
         if (active) {
-          setReport(result);
+          setReport(generated);
+          await refreshHistory();
           setStatus("报告已生成");
         }
       })
@@ -52,6 +88,11 @@ export function ReportCenterPage() {
           setStatus("报告生成失败，请确认后端服务可用");
         }
       })
+      .finally(() => {
+        if (active) {
+          setIsHistoryLoading(false);
+        }
+      });
 
     return () => {
       active = false;
@@ -128,19 +169,49 @@ export function ReportCenterPage() {
               ))}
             </div>
 
-            <Card className="report-actions">
-              <h2>行动清单</h2>
-              <div className="report-action-list">
-                {report.actionItems.map((item) => (
-                  <article key={`${item.customerId}-${item.priority}`} className="report-action">
-                    <span>{item.priority}</span>
-                    <strong>{item.customerName}</strong>
-                    <p>{item.action}</p>
-                    <small>{item.dueHint}</small>
-                  </article>
-                ))}
-              </div>
-            </Card>
+            <aside className="report-layout__side">
+              <Card className="report-history">
+                <div className="report-history__header">
+                  <h2>历史报告</h2>
+                  <span>{isHistoryLoading ? "加载中" : `${history.length} 份`}</span>
+                </div>
+                <div className="report-history__list">
+                  {history.length > 0 ? (
+                    history.map((item) => (
+                      <button
+                        key={item.id}
+                        className={`report-history__item${report.id === item.id ? " active" : ""}`}
+                        type="button"
+                        onClick={() => void openReport(item.id)}
+                        disabled={isHistoryLoading}
+                      >
+                        <strong>{item.title}</strong>
+                        <span>{new Date(item.generatedAt).toLocaleString()}</span>
+                        <small>
+                          {item.actionItemCount} 项行动 / {item.sectionCount} 个板块
+                        </small>
+                      </button>
+                    ))
+                  ) : (
+                    <p>暂无历史报告</p>
+                  )}
+                </div>
+              </Card>
+
+              <Card className="report-actions">
+                <h2>行动清单</h2>
+                <div className="report-action-list">
+                  {report.actionItems.map((item) => (
+                    <article key={`${item.customerId}-${item.priority}`} className="report-action">
+                      <span>{item.priority}</span>
+                      <strong>{item.customerName}</strong>
+                      <p>{item.action}</p>
+                      <small>{item.dueHint}</small>
+                    </article>
+                  ))}
+                </div>
+              </Card>
+            </aside>
           </div>
         </div>
       ) : (

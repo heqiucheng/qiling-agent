@@ -4,13 +4,13 @@ import type { Customer } from "../../types/customer";
 import type { DashboardSummary } from "../../types/dashboard";
 import type { FollowupTask } from "../../types/followup";
 import type { ReviewMetric } from "../../types/review";
-import type { Report } from "../../types/report";
+import type { Report, ReportSummary } from "../../types/report";
 import type { ConfirmUploadResult, UploadConversationResult } from "../../types/upload";
 import type { ConversationMessage } from "../../types/conversation";
 import type { CustomerDetail } from "../../types/customerDetail";
 import type { LongTermMemory, LongTermMemoryFact, MemoryFactCorrectionResult, MemoryFactStatusResult } from "../../types/memory";
 import type { ReviewInsight, ReviewSummary } from "../../types/review";
-import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, LongTermMemoryDto, LongTermMemoryFactDto, MemoryFactCorrectionResultDto, MemoryFactStatusResultDto, MetricDto, PageDto, ReportDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
+import type { AgentRecommendationDto, ConversationMessageDto, CustomerDetailDto, CustomerDto, DashboardSummaryDto, FollowupTaskDto, LongTermMemoryDto, LongTermMemoryFactDto, MemoryFactCorrectionResultDto, MemoryFactStatusResultDto, MetricDto, PageDto, ReportDto, ReportSummaryDto, ReviewInsightDto, ReviewSummaryDto } from "./dto";
 import type { ConfirmUploadResultDto, UploadConversationResultDto } from "./dto";
 
 export function mapCustomer(dto: CustomerDto): Customer {
@@ -190,6 +190,8 @@ export function mapReport(dto: ReportDto): Report {
     title: dto.title,
     rangeLabel: dto.range_label,
     summary: dto.summary,
+    ownerId: dto.owner_id,
+    ownerRole: dto.owner_role,
     metrics: dto.metrics.map(mapMetric),
     sections: dto.sections.map((section) => ({
       title: section.title,
@@ -214,6 +216,22 @@ export function mapReport(dto: ReportDto): Report {
       dueHint: item.due_hint
     })),
     markdown: dto.markdown,
+    generatedAt: dto.generated_at
+  };
+}
+
+export function mapReportSummary(dto: ReportSummaryDto): ReportSummary {
+  return {
+    id: dto.id,
+    type: dto.type,
+    title: dto.title,
+    rangeLabel: dto.range_label,
+    summary: dto.summary,
+    ownerId: dto.owner_id,
+    ownerRole: dto.owner_role,
+    metricCount: dto.metric_count,
+    sectionCount: dto.section_count,
+    actionItemCount: dto.action_item_count,
     generatedAt: dto.generated_at
   };
 }

@@ -327,12 +327,28 @@ type Report struct {
 	Type        ReportType         `json:"type"`
 	Title       string             `json:"title"`
 	RangeLabel  string             `json:"range_label"`
+	OwnerID     string             `json:"owner_id"`
+	OwnerRole   string             `json:"owner_role"`
 	Summary     string             `json:"summary"`
 	Metrics     []Metric           `json:"metrics"`
 	Sections    []ReportSection    `json:"sections"`
 	ActionItems []ReportActionItem `json:"action_items"`
 	Markdown    string             `json:"markdown"`
 	GeneratedAt string             `json:"generated_at"`
+}
+
+type ReportSummary struct {
+	ID              string     `json:"id"`
+	Type            ReportType `json:"type"`
+	Title           string     `json:"title"`
+	RangeLabel      string     `json:"range_label"`
+	Summary         string     `json:"summary"`
+	OwnerID         string     `json:"owner_id"`
+	OwnerRole       string     `json:"owner_role"`
+	MetricCount     int        `json:"metric_count"`
+	SectionCount    int        `json:"section_count"`
+	ActionItemCount int        `json:"action_item_count"`
+	GeneratedAt     string     `json:"generated_at"`
 }
 
 type ReportSection struct {

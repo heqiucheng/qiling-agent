@@ -21,6 +21,7 @@ type MockStore struct {
 	audit     []domain.AuditEvent
 	runs      map[string]domain.AgentRun
 	facts     map[string]domain.LongTermMemoryFact
+	reports   map[string]domain.Report
 }
 
 func NewMockStore() *MockStore {
@@ -76,6 +77,7 @@ func NewMockStore() *MockStore {
 		audit:     []domain.AuditEvent{},
 		runs:      map[string]domain.AgentRun{},
 		facts:     map[string]domain.LongTermMemoryFact{},
+		reports:   map[string]domain.Report{},
 		tasks: []domain.FollowupTask{
 			newTask("task_001", customers[0], "price_objection", "2026-05-28T10:00:00Z", domain.AgentRecommendation{
 				CustomerStage:     domain.StagePriceObjection,
@@ -536,6 +538,50 @@ func (s *MockStore) CorrectLongTermMemoryFact(customerID string, factID string, 
 		OldStatus: domain.MemoryFactSuperseded,
 		NewFact:   corrected,
 	}, nil
+}
+
+func (s *MockStore) SaveReport(report domain.Report) (domain.Report, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if report.ID == "" {
+		report.ID = fmt.Sprintf("rpt_%03d", s.nextID)
+		s.nextID++
+	}
+	if report.GeneratedAt == "" {
+		report.GeneratedAt = "2026-05-28T10:45:00Z"
+	}
+	s.reports[report.ID] = report
+	return report, nil
+}
+
+func (s *MockStore) Report(id string) (domain.Report, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	report, ok := s.reports[id]
+	return report, ok
+}
+
+func (s *MockStore) ReportPage(ownerID string, ownerRole string, page PageRequest) ReportPage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	reports := make([]domain.ReportSummary, 0)
+	for _, report := range s.reports {
+		if report.OwnerID != ownerID || report.OwnerRole != ownerRole {
+			continue
+		}
+		reports = append(reports, reportSummary(report))
+	}
+	sort.SliceStable(reports, func(i, j int) bool {
+		if reports[i].GeneratedAt == reports[j].GeneratedAt {
+			return reports[i].ID > reports[j].ID
+		}
+		return reports[i].GeneratedAt > reports[j].GeneratedAt
+	})
+
+	return ReportPage{Items: paginate(reports, page), Total: len(reports)}
 }
 
 func (s *MockStore) CreateAuditEvent(event domain.AuditEvent) (domain.AuditEvent, error) {
